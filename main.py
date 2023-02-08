@@ -8,7 +8,7 @@ from torch_geometric.nn import GCNConv
 import pickle
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
-from utils import OPTreconfigure
+from utils import Network_Utilities
 
 "local"
 from nets import GCN
@@ -25,6 +25,8 @@ def main():
     except FileNotFoundError:
         print('Network file does not exist')
 
+    output_processor = Network_Utilities(data.M, data.N, data.numSwitches,
+                                        data.pl, data.ql)
     # Once we use bigger examples, we should use the Dataset Class of GPY 
     dataset_train, dataset_valid, dataset_test = create_graph_datasets(data)
 
@@ -34,12 +36,12 @@ def main():
 
     model = GCN(input_features=2, hidden_channels=12, output_classes=3, layers=4)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+    cost_fnc = output_processor.obj_fnc #needs z and zc as input
+
     
-    # TODO look how Rabab implemented her loss
-    criterion = torch.nn.CrossEntropyLoss()
-    
+
     for epoch in range(1, 100):
-        loss = train(model, optimizer, criterion, train_loader)
+        loss = train(model, optimizer, cost_fnc, train_loader)
         eval_loss = test_or_validate(model, valid_loader)
         print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}')
 
