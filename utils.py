@@ -39,6 +39,8 @@ class OPTreconfigure():
         data = spio.loadmat(filename)
 
         cases = data['case_data_all'][0][0]
+        
+        ########################## Data Extraction #############################
         pl = cases[0]
         ql = cases[1]
         pgLow = cases[2]
@@ -60,8 +62,8 @@ class OPTreconfigure():
         mEnd = network[10]
         Rall = np.squeeze(network[13])
         Xall = np.squeeze(network[14])
-        vLow = np.square(np.squeeze(network[15]))  # not a vector, just a value
-        vUpp = np.square(np.squeeze(network[16]))  # not a vector, just a value
+        vLow = np.square(np.squeeze(network[15]))
+        vUpp = np.square(np.squeeze(network[16]))
         bigM = 0.5  # all quantities in pu, so 1pu = SBase
 
         # network data
@@ -69,29 +71,35 @@ class OPTreconfigure():
         self.M = M.item(0)
         self.SBase = SBase.item(0)
 
-        # TODO: Feb 2, 2022:
-        # TODO: fix A creation: setup.py code assumes all switches are at the end. Matlab code does not.
         self.swInds = swInds  # doesn't need to be a tensor bc an index
         self.numSwitches = numSwitches.item(0)
+
+
+        ######################## Data processing ###############################
         interim = list(set(np.arange(0, M)) ^ set(self.swInds - 1))  # non-switch lines
-        self.Rall = torch.cat((torch.from_numpy(Rall[interim]), torch.from_numpy(Rall[swInds - 1])))
-        self.Xall = torch.cat((torch.from_numpy(Xall[interim]), torch.from_numpy(Xall[swInds - 1])))
+        self.Rall = torch.cat((torch.from_numpy(Rall[interim]),
+                                torch.from_numpy(Rall[swInds - 1])))
+        self.Xall = torch.cat((torch.from_numpy(Xall[interim]),
+                                torch.from_numpy(Xall[swInds - 1])))
+        
         mStart_reshaped = sp.hstack((mStart[:, interim], mStart[:, swInds - 1]))
         mEnd_reshaped = sp.hstack((mEnd[:, interim], mEnd[:, swInds - 1]))
         Acoo = mStart_reshaped - mEnd_reshaped
 
         mStart_tensor = torch.sparse_coo_tensor(
-            torch.vstack((torch.from_numpy(mStart_reshaped.tocoo().row), torch.from_numpy(mStart_reshaped.tocoo().col))),
+            torch.vstack((torch.from_numpy(mStart_reshaped.tocoo().row),
+            torch.from_numpy(mStart_reshaped.tocoo().col))),
             mStart_reshaped.data, torch.Size(mStart_reshaped.shape))  # indices, values, size
         mEnd_tensor = torch.sparse_coo_tensor(
-            torch.vstack((torch.from_numpy(mEnd_reshaped.tocoo().row), torch.from_numpy(mEnd_reshaped.tocoo().col))),
+            torch.vstack((torch.from_numpy(mEnd_reshaped.tocoo().row),
+            torch.from_numpy(mEnd_reshaped.tocoo().col))),
             mEnd_reshaped.data, torch.Size(mEnd_reshaped.shape))  # indices, values, size
 
         self.mStart = mStart_tensor
         self.mEnd = mEnd_tensor
         self.A = (mStart_tensor - mEnd_tensor).to_dense()
         self.Aabs = mStart_tensor + mEnd_tensor
-
+        
         # Pytorch want each row a case, each column a node
         # randomize the data so different cases appear in training, validation, testing
         perm = np.arange(pl.shape[1])
@@ -171,6 +179,7 @@ class OPTreconfigure():
     def x(self):
         return self._x
 
+    @property
     def y(self):
         return self._y
 
@@ -281,18 +290,11 @@ class OPTreconfigure():
 
     @property
     def testY(self):
-        # res = None
-        # try:
-        #     res = self.y[int(self.num * (self.train_frac + self.valid_frac)):]
-        # except ValueError:
-        #     print('Solution data not loaded for testY')
-        # return res
         res = self.y()
         if res is not None:
             return res[int(self.num * (self.train_frac + self.valid_frac)):]
         else:
             return None
-            # raise ValueError
 
     @property
     def device(self):
