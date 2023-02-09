@@ -31,16 +31,120 @@ def my_hash(string):
 
 #####
 
+"""
+# def get_data():
+#     SBase, VBase, ZBase, YBase, IBase, N, M, swInds, mStartInd, mStart, mEndInd, mEnd, Rall, Xall, vLow, vUpp = define_network()
+#     genInds, pgLow, pgUpp, qgLow, qgUpp = generators(N)
+#     pl, ql = loads()
+#
+#     # convert bounds to per unit, for all test cases
+#     pgLow /= SBase
+#     pgUpp /= SBase
+#     qgLow /= SBase
+#     qgUpp /= SBase
+#     pl /= SBase
+#     ql /= SBase
+#
+#     A = mStart - mEnd
+#     bigM = 10  # for formulation of conditional constraints
+#     dineq_dz_mat = dineq_dz(N, M, swInds, Rall, Xall, bigM, A)
+#     dineq_dzc_mat = dineq_dzc(N, M, swInds, bigM, A)
+#     dzc_dz_mat, dzc_dx_mat = dzc_vars(N, M, swInds, A, Rall, Xall)
+#     dineq_dz_fullmat = dineq_dz_mat + dineq_dzc_mat * dzc_dz_mat
+#
+#     return (
+#         N, M, SBase, swInds, mStart, mEnd, Rall, Xall, pl, ql, pgUpp, pgLow, qgUpp, qgLow, vUpp, vLow, A, bigM,
+#         dineq_dz_mat.todense(), dineq_dzc_mat.todense(), dzc_dz_mat.todense(), dzc_dx_mat.todense(), dineq_dz_fullmat.todense()
+#     )
+#
+#
+# def define_network():
+#     # Define base values
+#     SBase = 5000  # kVA
+#     VBase = 4160  # V
+#     ZBase = np.square(VBase) / SBase / 1000  # Ohm
+#     YBase = 1 / ZBase  # Siemens
+#     IBase = SBase * 1000 / (np.sqrt(3) * VBase)
+#
+#     # Network values
+#     N = 4
+#     M = 4  # total possible edges
+#     swInds = np.array([2, 3])  # index of the switched lines, by the topology. remember Python starts indexing at 0
+#     mStartInd = np.array([1, 2, 1, 2])
+#     mStart = sp.coo_matrix((np.ones(M, dtype=int), (mStartInd - 1, np.arange(0, M, 1))), shape=(M, M))
+#     mEndInd = np.array([2, 3, 4, 4])
+#     mEnd = sp.coo_matrix((np.ones(M, dtype=int), (mEndInd - 1, np.arange(0, M, 1))), shape=(M, M))
+#
+#     # Network parameters Z = R + jX
+#     Rall = np.array([0.35, 0.35, 0.35, 0.34]) / ZBase
+#     Xall = np.array([1, 1, 1, 0.8]) / ZBase
+#
+#     # set variable bounds; have 2 test cases
+#     vLow = np.vstack(([1, 1], np.ones([N - 1, 2]) * np.square(0.95)))  # LinDistFlow uses square magnitude
+#     vUpp = np.vstack(([1, 1], np.ones([N - 1, 2]) * np.square(1.05)))  # LinDistFlow uses square magnitude
+#
+#     return SBase, VBase, ZBase, YBase, IBase, N, M, swInds, mStartInd, mStart, mEndInd, mEnd, Rall, Xall, vLow, vUpp
+#
+#
+# def generators(N):
+#     # generators (excluding feeder): node_location  minGen  maxGen
+#     genInds = np.array([3])
+#     minGenP = np.array([0, 0])
+#     maxGenP = np.array([100, 100])
+#     minGenQ = np.array([0, 0])
+#     maxGenQ = np.array([0, 0])
+#
+#     # Initialize the vectors, no bounds on the feeder
+#     pgLow = np.zeros([N - 1, 2], dtype = 'float')
+#     pgUpp = np.zeros([N - 1, 2], dtype = 'float')
+#     qgLow = np.zeros([N - 1, 2], dtype = 'float')
+#     qgUpp = np.zeros([N - 1, 2], dtype = 'float')
+#     # add data for the generators
+#     pgLow[genInds - 2, :] = minGenP
+#     pgUpp[genInds - 2, :] = maxGenP
+#     qgLow[genInds - 2, :] = minGenQ
+#     qgUpp[genInds - 2, :] = maxGenQ
+#
+#     return genInds, pgLow, pgUpp, qgLow, qgUpp
+#
+#
+# def loads():
+#     # loads - fixed (no DR capabilities)
+#     # each column is a test case, each row a node in the network
+#     pl = np.array([[0, 0],
+#                    [200, 150],
+#                    [0, 0],
+#                    [150, 300]], dtype = 'float')  # two test cases
+#     ql = np.array([[0, 0],
+#                   [100, 80],
+#                   [0, 0],
+#                   [80, 120]], dtype = 'float')
+#     return pl, ql
+#
+# def get_solution_data():
+#     # for debugging the NN code, have solution data generated from optimization in matlab for 2 test cases
+#     pg = np.array([[0.0506, 0.075], [0, 0], [0.0194, 0.015], [0, 0]])
+#     qg = np.array([[0.0360, 0.04], [0, 0], [0, 0], [0, 0]])
+#     v = np.array([[1, 1], [0.9843, 0.9877], [0.9882, 0.9908], [0.9847, 0.9740]])
+#     yij = np.array([[1, 1], [0, 0]])
+#     zij = np.array([[1, 1], [0, 0], [1, 1], [0, 0]])
+#     zji = np.array([[0, 0], [1, 1], [0, 0], [0, 0]])
+#     pij = np.array([[0.0206, 0.015], [0, 0], [0.03, 0.06], [0, 0]])
+#     pji = np.array([[0, 0], [0.0194, 0.015], [0, 0], [0, 0]])
+#     qij = np.array([[0.02, 0.016], [0, 0], [0.016, 0.024], [0, 0]])
+#     qji = np.array([[0, 0], [0, 0], [0, 0.000002765], [0, 0]])
+#
+#     return pg, qg, v, yij, zij, zji, pij, pji, qij, qji
+"""
+
+
 class OPTreconfigure():
     def __init__(self, filename, dataflag='partial', valid_frac=0.1, test_frac=0.1):
-        #TODO look at this class, it's a mess
         
         # load network data by name... - replace this function
         data = spio.loadmat(filename)
 
         cases = data['case_data_all'][0][0]
-        
-        ########################## Data Extraction #############################
         pl = cases[0]
         ql = cases[1]
         pgLow = cases[2]
@@ -62,8 +166,8 @@ class OPTreconfigure():
         mEnd = network[10]
         Rall = np.squeeze(network[13])
         Xall = np.squeeze(network[14])
-        vLow = np.square(np.squeeze(network[15]))
-        vUpp = np.square(np.squeeze(network[16]))
+        vLow = np.square(np.squeeze(network[15]))  # not a vector, just a value
+        vUpp = np.square(np.squeeze(network[16]))  # not a vector, just a value
         bigM = 0.5  # all quantities in pu, so 1pu = SBase
 
         # network data
@@ -71,35 +175,45 @@ class OPTreconfigure():
         self.M = M.item(0)
         self.SBase = SBase.item(0)
 
+        # TODO: Feb 2, 2022:
+        # TODO: fix A creation: setup.py code assumes all switches are at the end. Matlab code does not.
         self.swInds = swInds  # doesn't need to be a tensor bc an index
         self.numSwitches = numSwitches.item(0)
-
-
-        ######################## Data processing ###############################
         interim = list(set(np.arange(0, M)) ^ set(self.swInds - 1))  # non-switch lines
-        self.Rall = torch.cat((torch.from_numpy(Rall[interim]),
-                                torch.from_numpy(Rall[swInds - 1])))
-        self.Xall = torch.cat((torch.from_numpy(Xall[interim]),
-                                torch.from_numpy(Xall[swInds - 1])))
-        
+        self.Rall = torch.cat((torch.from_numpy(Rall[interim]), torch.from_numpy(Rall[swInds - 1])))
+        self.Xall = torch.cat((torch.from_numpy(Xall[interim]), torch.from_numpy(Xall[swInds - 1])))
         mStart_reshaped = sp.hstack((mStart[:, interim], mStart[:, swInds - 1]))
         mEnd_reshaped = sp.hstack((mEnd[:, interim], mEnd[:, swInds - 1]))
         Acoo = mStart_reshaped - mEnd_reshaped
 
         mStart_tensor = torch.sparse_coo_tensor(
-            torch.vstack((torch.from_numpy(mStart_reshaped.tocoo().row),
-            torch.from_numpy(mStart_reshaped.tocoo().col))),
+            torch.vstack((torch.from_numpy(mStart_reshaped.tocoo().row), torch.from_numpy(mStart_reshaped.tocoo().col))),
             mStart_reshaped.data, torch.Size(mStart_reshaped.shape))  # indices, values, size
         mEnd_tensor = torch.sparse_coo_tensor(
-            torch.vstack((torch.from_numpy(mEnd_reshaped.tocoo().row),
-            torch.from_numpy(mEnd_reshaped.tocoo().col))),
+            torch.vstack((torch.from_numpy(mEnd_reshaped.tocoo().row), torch.from_numpy(mEnd_reshaped.tocoo().col))),
             mEnd_reshaped.data, torch.Size(mEnd_reshaped.shape))  # indices, values, size
+
+        # mStart_tensor = torch.sparse_coo_tensor(
+        #     torch.vstack((torch.from_numpy(
+        #         np.concatenate((mStart[:, interim].tocoo().row, mStart[:, self.swInds - 1].tocoo().row))),
+        #                   torch.arange(0, self.M))),  # all cols should be 0:M-1
+        #     np.concatenate((mStart.data[interim], mStart.data[self.swInds - 1])),
+        #     torch.Size(mStart.shape))  # indices, values, size
+        #
+        # mEnd_tensor = torch.sparse_coo_tensor(
+        #     torch.vstack((torch.from_numpy(
+        #         np.concatenate((mEnd[:, interim].tocoo().row, mEnd[:, self.swInds - 1].tocoo().row))),
+        #                   torch.arange(0, self.M))),
+        #     np.concatenate((mEnd.data[interim], mEnd.data[self.swInds - 1])),
+        #     torch.Size(mEnd.shape))  # indices, values, size
 
         self.mStart = mStart_tensor
         self.mEnd = mEnd_tensor
         self.A = (mStart_tensor - mEnd_tensor).to_dense()
         self.Aabs = mStart_tensor + mEnd_tensor
-        
+
+
+
         # Pytorch want each row a case, each column a node
         # randomize the data so different cases appear in training, validation, testing
         perm = np.arange(pl.shape[1])
@@ -125,6 +239,36 @@ class OPTreconfigure():
         self.dzc_dx_mat = torch.from_numpy(dzc_dx_mat)
         self.dineq_dz_fullmat = torch.from_numpy(dineq_dz_fullmat)
         self.dineq_dz_partialmat = torch.from_numpy(dineq_dz_mat)
+
+        """
+        # dzc_dz_mat_tensor = torch.sparse_coo_tensor(
+        #     torch.vstack((torch.from_numpy(dzc_dz_mat.row), torch.from_numpy(dzc_dz_mat.col))), dzc_dz_mat.data,
+        #     torch.Size(dzc_dz_mat.shape))  # indices, values, size
+        # dzc_dx_mat_tensor = torch.sparse_coo_tensor(
+        #     torch.vstack((torch.from_numpy(dzc_dx_mat.row), torch.from_numpy(dzc_dx_mat.col))), dzc_dx_mat.data,
+        #     torch.Size(dzc_dx_mat.shape))  # indices, values, size
+        # dineq_dz_fullmat_tensor = torch.sparse_coo_tensor(
+        #     torch.vstack((torch.from_numpy(dineq_dz_fullmat.row), torch.from_numpy(dineq_dz_fullmat.col))), dineq_dz_fullmat.data,
+        #     torch.Size(dineq_dz_fullmat.shape))  # indices, values, size
+
+        # self.dineq_dz_mat = dineq_dz_mat
+        # self.dineq_dzc_mat = dineq_dzc_mat
+        # self.dzc_dz_mat = dzc_dz_mat
+        # self.dzc_dx_mat = dzc_dx_mat
+        # self.dineq_dz_fullmat = dineq_dz_mat + dineq_dzc_mat * dzc_dz_mat
+
+        # self.dineq_dz_mat = dineq_dz_mat
+        # self.dineq_dzc_mat = dineq_dzc_mat
+        # self.dzc_dz_mat = dzc_dz_mat_tensor
+        # self.dzc_dx_mat = dzc_dx_mat_tensor
+        # self.dineq_dz_fullmat = dineq_dz_fullmat_tensor
+
+        # optimization input and output variables
+        # x = [pl\f, ql\f]  # input to NN
+        # z = [zji, y\last, pij, pji, qji, {qij}sw, v\f, plf, qlf]  # initial guess from NN
+        # zc = [zij, ylast, {qij}nosw, pg, qg]  # completion vars
+        # y = [z, zc]
+        """
 
         # this is all the data - then it'll get split into train-test-valid
         # TODO fix dimensions for multiple test cases
@@ -179,7 +323,6 @@ class OPTreconfigure():
     def x(self):
         return self._x
 
-    @property
     def y(self):
         return self._y
 
@@ -290,15 +433,74 @@ class OPTreconfigure():
 
     @property
     def testY(self):
+        # res = None
+        # try:
+        #     res = self.y[int(self.num * (self.train_frac + self.valid_frac)):]
+        # except ValueError:
+        #     print('Solution data not loaded for testY')
+        # return res
         res = self.y()
         if res is not None:
             return res[int(self.num * (self.train_frac + self.valid_frac)):]
         else:
             return None
+            # raise ValueError
 
     @property
     def device(self):
         return self._device
+
+    def decompose_vars_x(self, x):
+        # x = [pl\f, ql\f]  # input to NN
+        pl = x[:, 0:self.N - 1]
+        ql = x[:, self.N - 1:None]
+        return pl, ql
+
+    def decompose_vars_z(self, z):
+        # z = [zji, y\last, pij, pji, qji, qij_sw, v\f, plf, qlf]  # initial guess from NN
+
+        zji = z[:, 0:self.M]
+        y_nol = z[:, self.M + np.arange(0, self.numSwitches-1)]
+        pij = z[:, self.M+self.numSwitches-1 + np.arange(0, self.M)]
+        pji = z[:, 2*self.M+self.numSwitches-1 + np.arange(0, self.M)]
+        qji = z[:, 3*self.M+self.numSwitches-1 + np.arange(0, self.M)]
+        qij_sw = z[:, 4 * self.M + self.numSwitches - 1 + np.arange(0, self.numSwitches)]
+        v = z[:, 4 * self.M + 2 * self.numSwitches - 1 + np.arange(0, self.N - 1)]  # feeder not included
+        plf = z[:, 4 * self.M + 2 * self.numSwitches - 1 + self.N - 1]
+        qlf = z[:, 4 * self.M + 2 * self.numSwitches - 1 + self.N]
+        # v = z[:, 4*self.M+self.numSwitches-1 + np.arange(0, self.N-1)]  # feeder not included
+        # plf = z[:, 4*self.M+self.numSwitches-1+self.N-1]
+        # qlf = z[:, 4*self.M+self.numSwitches-1+self.N]
+        return zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf
+
+    def decompose_vars_zc(self, zc):
+        # zc = [zij, ylast, {qij}nosw, pg, qg]  # completion vars
+        zij = zc[:, np.arange(0, self.M)]
+        ylast = zc[:, self.M]
+        qij_nosw = zc[:, self.M + 1 + np.arange(0, self.M - self.numSwitches)]
+        pg = zc[:, 2 * self.M + 1 - self.numSwitches + np.arange(0, self.N)]
+        qg = zc[:, 2 * self.M + 1 - self.numSwitches + self.N + np.arange(0, self.N)]
+        # qij = zc[:, self.M+1 + np.arange(0, self.M)]
+        # pg = zc[:, 2*self.M+1 + np.arange(0, self.N)]
+        # qg = zc[:, 2*self.M+1+self.N + np.arange(0, self.N)]
+        return zij, ylast, qij_nosw, pg, qg
+
+    def get_integer_z(self, z):
+        z_ij, y_nol, _, _, _, _, _, _, _ = self.decompose_vars_z(z)
+
+        return torch.cat([z_ij, y_nol], dim = 1)
+
+    def obj_fnc(self, x, z, zc):
+        # # objective function: approximate power loss via line losses
+        # # Rij * (Pij^2 + Pji^2 + Qij^2 + Qji^2)
+        _, _, pij, pji, qji, qij_sw,  _, _, _ = self.decompose_vars_z(z)
+        _, _, qij_nosw, _, _ = self.decompose_vars_zc(zc)
+
+        qij = torch.hstack((qij_nosw, qij_sw))
+
+        fncval = torch.sum(torch.mul(torch.square(pij) + torch.square(pji) + torch.square(qij) + torch.square(qji), self.Rall), dim=1)
+
+        return fncval
 
     def train_adjustIDX(self, idx):
         start, _ = self.train_idx
@@ -312,93 +514,12 @@ class OPTreconfigure():
         start, _ = self.valid_idx
         return start + idx
 
-    def decompose_vars_x(self, x):
-        # x = [pl\f, ql\f]  # input to NN
-        pl = x[:, 0:self.N - 1]
-        ql = x[:, self.N - 1:None]
-        return pl, ql
-
-
-    ######## I DON'T THINK IT SHOULD BE PART OF class OPTreconfigure() #########
-    
-    ######## Solution 1: just define them as methods and use from      #########
-    ######## utils import method1, method2, method3, ...               #########
-    
-    ######## Solution 2: create a new class                            #########
-
-class Network_Utilities:
-
-    def __init__(self, M, N, numSwitches, pl, ql):
-        
-        self.M = M
-        self.N = N
-        self.numSwitches = numSwitches
-        self.pl = pl
-        self.ql = ql
-    
-    def decompose_vars_z(self, z):
-        """
-        decompose_vars returns the decomposition of the neural network guess 
-        
-        :param z: the neural network guess
-                    z = [zji, y\last, pij, pji, qji, qij_sw, v\f, plf, qlf]
-        :return: the decomposition of z
-        """
-
-        zji = z[:, 0:self.M]
-        y_nol = z[:, self.M + np.arange(0, self.numSwitches-1)]
-        pij = z[:, self.M + self.numSwitches - 1 + np.arange(0, self.M)]
-        pji = z[:, 2*self.M + self.numSwitches - 1 + np.arange(0, self.M)]
-        qji = z[:, 3*self.M + self.numSwitches - 1 + np.arange(0, self.M)]
-        qij_sw = z[:, 4*self.M + self.numSwitches - 1
-                    + np.arange(0, self.numSwitches)]
-        v = z[:, 4*self.M + 2*self.numSwitches - 1 + np.arange(0, self.N - 1)]  # feeder not included
-        plf = z[:, 4*self.M + 2*self.numSwitches - 1 + self.N - 1]
-        qlf = z[:, 4*self.M + 2*self.numSwitches - 1 + self.N]
-
-        return zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf
-
-    def decompose_vars_zc(self, zc):
-        # zc = [zij, ylast, {qij}nosw, pg, qg]  # completion vars
-        zij = zc[:, np.arange(0, self.M)]
-        ylast = zc[:, self.M]
-        qij_nosw = zc[:, self.M + 1 + np.arange(0, self.M - self.numSwitches)]
-        pg = zc[:, 2 * self.M + 1 - self.numSwitches + np.arange(0, self.N)]
-        qg = zc[:, 2 * self.M + 1 - self.numSwitches + self.N
-                + np.arange(0, self.N)]
-       
-        return zij, ylast, qij_nosw, pg, qg
-
-    def get_integer_z(self, z):
-        z_ij, y_nol, _, _, _, _, _, _, _ = self.decompose_vars_z(z)
-
-        return torch.cat([z_ij, y_nol], dim = 1)
-
-    def obj_fnc(self, z, zc):
-        """
-        obj_fnc approximates the power loss via line losses using 
-        Rij * (Pij^2 + Pji^2 + Qij^2 + Qji^2)
-
-        :param z: the output of the neural network
-        :param zc: the completion variables as defined in the paper
-        :return: the approximate line power losses 
-        """
-        _, _, pij, pji, qji, qij_sw,  _, _, _ = self.decompose_vars_z(z)
-        _, _, qij_nosw, _, _ = self.decompose_vars_zc(zc)
-
-        qij = torch.hstack((qij_nosw, qij_sw))
-
-        fncval = torch.sum(torch.mul(torch.square(pij) + torch.square(pji) 
-                + torch.square(qij) + torch.square(qji), self.Rall), dim=1)
-
-        return fncval
-
-    # Does not make sense to have this function, TODO look if problem if erased
     def ineq_dist(self, z, zc, idx):
         return self.ineq_resid(z, zc, idx)
 
-    def eq_resid(self, z, zc):
+    def eq_resid(self, x, z, zc):
         # should be zero, but implementing it as a debugging step
+        pl, ql = self.decompose_vars_x(x)
         zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
@@ -409,17 +530,24 @@ class Network_Utilities:
         numsw = self.numSwitches
         vall = torch.hstack((torch.ones(ncases, 1), v))
 
-        all_ohm_eqns = (torch.matmul(-vall, self.A.double())
-                        + 2*(torch.mul((pij-pji), self.Rall)
-                        + torch.mul((qij-qji), self.Xall)))
+        # zij + zji = 1
+        # zij + zji = y
+        # sum(y) = (N-1) - (M-numsw)
+        # y_rem = (data.N - 1) - (data.M - numsw) - torch.sum(y_nol, 1)
+        # pg - pl = sum(pji - pij)
+        # vj - vi = -2(Rij(Pij-Pji) + Xij(Qij-Qji)) -> should this be nonswitch lines only, or them all by this point?
+        # qg - ql = sum(qji - qij)
 
-        # TODO split-up this equation 
+        all_ohm_eqns = torch.matmul(-vall, self.A.double()) + 2*(torch.mul((pij-pji), self.Rall) + torch.mul((qij-qji), self.Xall))
+
         resids = torch.cat([zij[:, 0:self.M - numsw] + zji[:, 0:self.M - numsw] - torch.ones(ncases, self.M-numsw),
                             zij[:, self.M - numsw:] + zji[:, self.M - numsw:] - y,
                             (torch.sum(y, 1) - ((self.N - 1) - (self.M - numsw))).unsqueeze(1),
-                            pg - (torch.hstack((plf.unsqueeze(1), self.pl)).T + torch.mm(self.A.double(), torch.transpose(pij - pji, 0, 1))).T,  # should this be pji - pij (equivalently reverse sign on the full term)
+                            pg - (torch.hstack((plf.unsqueeze(1), pl)).T + torch.mm(self.A.double(), torch.transpose(pij - pji, 0, 1))).T,  # should this be pji - pij (equivalently reverse sign on the full term)
+                            # pg = torch.hstack((plf.unsqueeze(1), pl)).T + torch.mm(data.A.double(),
+                            #                                                        torch.transpose(pij - pji, 0, 1))
                             all_ohm_eqns[:, 0:self.M - numsw],
-                            qg - (torch.hstack((qlf.unsqueeze(1), self.ql)).T + torch.mm(self.A.double(), torch.transpose(qij-qji, 0, 1))).T  # should this be qji - qij (equivalently reverse sign on the full term)
+                            qg - (torch.hstack((qlf.unsqueeze(1), ql)).T + torch.mm(self.A.double(), torch.transpose(qij-qji, 0, 1))).T  # should this be qji - qij (equivalently reverse sign on the full term)
                             ], dim=1)
 
         return resids
@@ -434,19 +562,29 @@ class Network_Utilities:
         ncases = z.shape[0]
         vall = torch.hstack((torch.ones(ncases, 1), v))
 
-        # TODO rewrite that in multiple steps
-        resids = torch.cat([pg[:, 1:None] - self.pgUpp[idx, :],
-                            self.pgLow[idx, :] - pg[:, 1:None],
-                            qg[:, 1:None] - self.qgUpp[idx, :],
-                            self.qgLow[idx, :] - qg[:, 1:None],
-                            -torch.reshape(plf, (-1, 1)),
-                            -torch.reshape(qlf, (-1, 1)),
-                            -torch.reshape(pg[:, 0], (-1, 1)),
-                            -torch.reshape(qg[:, 0], (-1, 1)), v-self.vUpp,
-                            self.vLow - v, pij-self.bigM, -pij, pji-self.bigM,
-                            -pji, qij-self.bigM, -qij, qji - self.bigM, -qji,
-                            -zij, -zji, -y,
-                            torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
+        resids = torch.cat([
+            pg[:, 1:None] - self.pgUpp[idx, :],
+            self.pgLow[idx, :] - pg[:, 1:None],
+            qg[:, 1:None] - self.qgUpp[idx, :],
+            self.qgLow[idx, :] - qg[:, 1:None],
+            - torch.reshape(plf, (-1, 1)),
+            - torch.reshape(qlf, (-1, 1)),
+            - torch.reshape(pg[:, 0], (-1, 1)),
+            - torch.reshape(qg[:, 0], (-1, 1)),
+            v - self.vUpp,
+            self.vLow - v,
+            pij - self.bigM,
+            -pij,
+            pji - self.bigM,
+            -pji,
+            qij - self.bigM,
+            -qij,
+            qji - self.bigM,
+            -qji,
+            -zij,
+            -zji,
+            -y,
+            torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
                 np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T +
                 2 * (torch.mul((pij - pji), self.Rall) + torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
                 - self.bigM * (1 - y),
@@ -456,22 +594,33 @@ class Network_Utilities:
                 - self.bigM * (1 - y),
             1 - torch.mm(self.Aabs.double(), (zij+zji).T).T
         ], dim=1)
+        # - torch.mm(-torch.index_select(self.A, 0, torch.from_numpy(np.arange(self.M-self.numSwitches, self.M)).long()).double(), vall.T).T - 2*(
+        #         torch.mul((pij - pji), self.Rall) + torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None] - self.bigM*(1-y),
 
         return torch.clamp(resids, 0)
 
-    def corr_steps(self, z, zc, idx):
+    def ineq_partial_grad(self):
+        return
+
+    def ineq_grad(self):
+        return
+
+    def eq_grad(self):
+        return
+
+    def corr_steps(self, x, z, zc, idx):
         pos_resids = self.ineq_resid(z, zc, idx)
         delz = 2*torch.mm(pos_resids, self.dineq_dz_fullmat)
         delzc = torch.matmul(self.dzc_dz_mat, delz.T).T
         return delz, delzc
 
-    def corr_steps_partial(self, z, zc, idx):
+    def corr_steps_partial(self, x, z, zc, idx):
         pos_resids = self.ineq_resid(z, zc, idx)
         delz = 2*torch.mm(pos_resids, self.dineq_dz_partialmat)
         delzc = torch.matmul(self.dzc_dz_mat, delz.T).T
         return delz, delzc
 
-    def mixed_sigmoid(self, nnout, epoch):
+    def mixed_sigmoid(self, x, nnout, idx, epoch):
         # apply sigmoids here to get pg and v, and integer-ify the topology selection
 
         # parameter tau controls sharpness of the sigmoid function applied to binary variables. larger = sharper
@@ -498,7 +647,7 @@ class Network_Utilities:
 
         return z_physical
 
-    def output_layer(self, nnout):
+    def output_layer(self, x, nnout, idx, epoch):
         # apply mixed sigmoid to zji var
         # apply random {0,1} selection to {y}\last
         # map other vars to physics w/ standard sigmoid
@@ -549,6 +698,8 @@ class Network_Utilities:
                                   )) # y_sorted_inds[np.where(r == 0)[0], -L_min-1]
 
         num_to_zero = bin_vars_y.size(dim=1) - L_min - 1
+        if num_to_zero<0: num_to_zero=0
+
         rows_to_floor = np.hstack((np.arange(0, batchsize).repeat(num_to_zero),
                                    )) # np.where(r == -1)[0]
         cols_to_floor = np.hstack((y_sorted_inds[:, 0:num_to_zero].flatten(),
@@ -576,30 +727,52 @@ def dc3Function(data):
             zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = data.decompose_vars_z(z)
             numsw = data.numSwitches
             ncases = x.shape[0]
-
+            # zij + zji = 1
+            # zij + zji = y
+            # sum(y) = (N-1) - (M-numsw)
             y_rem = (data.N - 1) - (data.M - numsw) - torch.sum(y_nol, 1)
             zij = torch.zeros(ncases, data.M)
             zij[:, 0:data.M - numsw] = 1 - zji[:, 0:data.M - numsw]
             zij[:, data.M - numsw:-1] = y_nol - zji[:, data.M - numsw:-1]
             zij[:, -1] = y_rem - zji[:, -1]
 
+            # pg - pl = sum(pij - pji)
             pg = torch.hstack((plf.unsqueeze(1), pl)).T + torch.mm(data.A.double(), torch.transpose(pij-pji, 0, 1))
 
+            # vj - vi = -2(Rij(Pij-Pji) + Xij(Qij-Qji))
             # TODO check if this is implemented correctly with the A*v step - should be good
             vall = torch.hstack((torch.ones(ncases, 1), v))
             delQ = torch.div((-0.5 * torch.matmul(-vall, data.A.double()) - torch.mul((pij-pji), data.Rall)), data.Xall)
             delQ_nosw = delQ[:, 0:-numsw]
-
+            # qij = delQ + qji
             qij_rem = delQ_nosw + qji[:, 0:-numsw]
             qij = torch.hstack((qij_rem, qij_sw))
+            # qg - ql = sum(qij - qji)
 
             # TODO: Feb 1, 2022: check if this is correct
             delQ = torch.hstack((delQ_nosw, qij_sw - qji[:, data.M-numsw:]))  # Feb 1, 2022 edit on last term; was qji[:, numsw:])
+            # delQ = torch.hstack((delQ_nosw, qij_sw - qji[:, numsw:]))
             qg = torch.hstack((qlf.unsqueeze(1), ql)).T + torch.mm(data.A.double(), torch.transpose(delQ, 0, 1))
+
+            # tried a thing, didn't work
+            # qij_rem = qij[:, 0:-numsw]
+            # qij_sw = qij[:, numsw:]
 
             zc = torch.hstack((zij, y_rem.unsqueeze(1), qij_rem, pg.T, qg.T))
             zc.requires_grad = True
 
+            # # need to check the equality constraints....
+            # pl, ql = data.decompose_vars_x(x)
+            # _, _, pij_n, pji_n, qji_n, _, v_n, _, _ = data.decompose_vars_z(z)
+            # _, _, qij_nosw_n, _, _ = data.decompose_vars_zc(zc)
+            # qij_n = torch.hstack((qij_nosw_n, qij_sw))
+            # vall_n = torch.hstack((torch.ones(ncases, 1), v_n))
+            # res = torch.matmul(-vall_n, data.A.double()) + 2 * (
+            #             torch.mul((pij_n - pji_n), data.Rall) + torch.mul((qij_n - qji_n), data.Xall))
+
+            # print('specific constraint right after completion: {:.4f}'.format(torch.max(res)))
+
+            # ctx.data = data
             return z, zc
 
         @staticmethod
@@ -678,11 +851,24 @@ def mixedIntFnc(data):
 
             output_bin_zji = torch.clamp(2/(1+torch.exp(-tau*bin_vars_zji)) - 1, 0)
 
+            # # random y selection
+            # r = random.randint(-1, 0)  # np.random.randint(-1,0,batchsize)
+            # # swstats_on = (data.N - 1) - (data.M - data.numSwitches) - 1
+            # # swstats_off = data.numSwitches - swstats_on - 1
+            # # y_off = torch.zeros(batchsize, swstats_off)
+            # # y_on = torch.ones(batchsize, swstats_on)
+            # L_min = (data.N - 1) - (data.M - data.numSwitches)  # number of switches that are selected to be on (= 1)
+            # # L_max = L_min + r
+            # y_sorted_inds = np.argsort(bin_vars_y)  # sorted in ascending order
             batchsize = z.size(dim=0)
             r = np.random.randint(-1, 1, batchsize)
             L_min = (data.N - 1) - (data.M - data.numSwitches)
             y_sorted_inds = torch.argsort(bin_vars_y)  # sorted in ascending order
-           
+            # value = [1]*(L_min*batchsize + np.size(np.where(r == 0)[0]))
+            # rows = np.hstack((np.arange(0, batchsize).repeat(L_min), np.where(r == 0)[0]))
+            # cols = np.hstack((y_sorted_inds[:, -L_min:].flatten(), y_sorted_inds[np.where(r == 0)[0], -L_min-1]))
+            # output_bin_y = torch.sparse_coo_tensor([rows, cols], value, (batchsize, data.numSwitches-1)).to_dense()  # inds, value, (size)
+
             output_bin_y_test = bin_vars_y.abs()
             # ceil the largest L values to 1, floor the smallest size(bin_y)-L values to 0
             rows_to_ceil = np.hstack((np.arange(0, batchsize).repeat(L_min),
@@ -698,6 +884,9 @@ def mixedIntFnc(data):
 
             output_bin_y_test[rows_to_ceil, cols_to_ceil] = output_bin_y_test[rows_to_ceil, cols_to_ceil].ceil()
             output_bin_y_test[rows_to_floor, cols_to_floor] = output_bin_y_test[rows_to_floor, cols_to_floor].floor()
+
+            # output_bin_y = torch.zeros(batchsize, data.numSwitches-1) # initialize all at zeros
+            # for the L largest y values, set these to 1
 
             z_new = torch.hstack((output_bin_zji, output_bin_y_test, output_cont))
 
