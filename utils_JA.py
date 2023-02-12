@@ -3,31 +3,33 @@ import numpy as np
 import torch.nn as nn
 from torch.autograd import Function
 
+
 class Utils:
 
-    def __init__(self, M, N, numSwitches, pl, ql):
-        
-        self.M = M
-        self.N = N
-        self.numSwitches = numSwitches
-        self.pl = pl
-        self.ql = ql
-    
-    def xgraph_xflatten(x_graph):
-        #TODO see how the epochs 
-        """
-        xgraph_xflatten returns the input of the GNN as expected by the NN
-        
-        :param x_graph: the input of the GNN 
-        
-        """
-        return torch.flatten(x_graph.t())
-    
-    
+    def __init__(self, data):
+
+        self.A = data.A
+        self.M = data.M
+        self.N = data.N
+        self.numSwitches = data.numSwitches
+        self.pl = data.pl
+        self.ql = data.ql
+        self.Rall = data.Rall
+        self.Xall = data.Xall
+        self.pgUpp = data.pgUppco
+        self.pgLow = data.pgLow
+        self.qgUpp = data.qgUpp
+        self.qgLow = data.qgLow
+        self.bigM = data.bigM
+        self.Xall = data.Xall
+        self.Rall = data.Rall
+        self.vUpp = data.vUpp
+        self.vLow = data.vLow
+
     def decompose_vars_z(self, z):
         """
         decompose_vars returns the decomposition of the neural network guess 
-        
+
         :param z: the neural network guess
                     z = [zji, y\last, pij, pji, qji, qij_sw, v\f, plf, qlf]
         :return: the decomposition of z
@@ -39,8 +41,9 @@ class Utils:
         pji = z[:, 2*self.M + self.numSwitches - 1 + np.arange(0, self.M)]
         qji = z[:, 3*self.M + self.numSwitches - 1 + np.arange(0, self.M)]
         qij_sw = z[:, 4*self.M + self.numSwitches - 1
-                    + np.arange(0, self.numSwitches)]
-        v = z[:, 4*self.M + 2*self.numSwitches - 1 + np.arange(0, self.N - 1)]  # feeder not included
+                   + np.arange(0, self.numSwitches)]
+        v = z[:, 4*self.M + 2*self.numSwitches - 1 +
+              np.arange(0, self.N - 1)]  # feeder not included
         plf = z[:, 4*self.M + 2*self.numSwitches - 1 + self.N - 1]
         qlf = z[:, 4*self.M + 2*self.numSwitches - 1 + self.N]
 
@@ -54,13 +57,13 @@ class Utils:
         pg = zc[:, 2 * self.M + 1 - self.numSwitches + np.arange(0, self.N)]
         qg = zc[:, 2 * self.M + 1 - self.numSwitches + self.N
                 + np.arange(0, self.N)]
-       
+
         return zij, ylast, qij_nosw, pg, qg
 
     def get_integer_z(self, z):
         z_ij, y_nol, _, _, _, _, _, _, _ = self.decompose_vars_z(z)
 
-        return torch.cat([z_ij, y_nol], dim = 1)
+        return torch.cat([z_ij, y_nol], dim=1)
 
     def obj_fnc(self, z, zc):
         """
@@ -76,8 +79,8 @@ class Utils:
 
         qij = torch.hstack((qij_nosw, qij_sw))
 
-        fncval = torch.sum(torch.mul(torch.square(pij) + torch.square(pji) 
-                + torch.square(qij) + torch.square(qji), self.Rall), dim=1)
+        fncval = torch.sum(torch.mul(torch.square(pij) + torch.square(pji)
+                                     + torch.square(qij) + torch.square(qji), self.Rall), dim=1)
 
         return fncval
 
@@ -87,7 +90,8 @@ class Utils:
 
     def eq_resid(self, z, zc):
         # should be zero, but implementing it as a debugging step
-        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
+        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(
+            z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
         qij = torch.hstack((qij_nosw, qij_sw))
@@ -101,19 +105,26 @@ class Utils:
                         + 2*(torch.mul((pij-pji), self.Rall)
                         + torch.mul((qij-qji), self.Xall)))
 
-        # TODO split-up this equation 
+        # TODO split-up this equation
         resids = torch.cat([zij[:, 0:self.M - numsw] + zji[:, 0:self.M - numsw] - torch.ones(ncases, self.M-numsw),
-                            zij[:, self.M - numsw:] + zji[:, self.M - numsw:] - y,
-                            (torch.sum(y, 1) - ((self.N - 1) - (self.M - numsw))).unsqueeze(1),
-                            pg - (torch.hstack((plf.unsqueeze(1), self.pl)).T + torch.mm(self.A.double(), torch.transpose(pij - pji, 0, 1))).T,  # should this be pji - pij (equivalently reverse sign on the full term)
+                            zij[:, self.M - numsw:] +
+                            zji[:, self.M - numsw:] - y,
+                            (torch.sum(y, 1) - ((self.N - 1) -
+                             (self.M - numsw))).unsqueeze(1),
+                            # should this be pji - pij (equivalently reverse sign on the full term)
+                            pg - (torch.hstack((plf.unsqueeze(1), self.pl)).T + \
+                                  torch.mm(self.A.double(), torch.transpose(pij - pji, 0, 1))).T,
                             all_ohm_eqns[:, 0:self.M - numsw],
-                            qg - (torch.hstack((qlf.unsqueeze(1), self.ql)).T + torch.mm(self.A.double(), torch.transpose(qij-qji, 0, 1))).T  # should this be qji - qij (equivalently reverse sign on the full term)
+                            # should this be qji - qij (equivalently reverse sign on the full term)
+                            qg - (torch.hstack((qlf.unsqueeze(1), self.ql)).T + \
+                                  torch.mm(self.A.double(), torch.transpose(qij-qji, 0, 1))).T
                             ], dim=1)
 
         return resids
 
     def ineq_resid(self, z, zc, idx):  # Z = [z,zc]
-        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
+        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(
+            z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
         qij = torch.hstack((qij_nosw, qij_sw))
@@ -135,15 +146,17 @@ class Utils:
                             -pji, qij-self.bigM, -qij, qji - self.bigM, -qji,
                             -zij, -zji, -y,
                             torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
-                np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T +
-                2 * (torch.mul((pij - pji), self.Rall) + torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
-                - self.bigM * (1 - y),
-            -torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
-                np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T -
-                2 * (torch.mul((pij - pji), self.Rall) + torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
-                - self.bigM * (1 - y),
-            1 - torch.mm(self.Aabs.double(), (zij+zji).T).T
-        ], dim=1)
+                                np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T +
+                            2 * (torch.mul((pij - pji), self.Rall) +
+                                 torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
+                            - self.bigM * (1 - y),
+                            -torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
+                                np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T -
+                            2 * (torch.mul((pij - pji), self.Rall) +
+                                 torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
+                            - self.bigM * (1 - y),
+                            1 - torch.mm(self.Aabs.double(), (zij+zji).T).T
+                            ], dim=1)
 
         return torch.clamp(resids, 0)
 
@@ -176,13 +189,15 @@ class Utils:
         # z = [zji, y\last, pij, pji, qji, {qij}sw, v\f, plf, qlf]  # initial guess from NN
         # zji and y\last are binary vars, which have already been processed to be between 0 and 1
         # process pij, pji, qji, {qij}_sw, v\f, plf, qlf to be within reasonable bounds
-        zji, y_nol, pij_nn, pji_nn, qji_nn, qij_nosw_nn, v_nn, plf, qlf = self.decompose_vars_z(z)
+        zji, y_nol, pij_nn, pji_nn, qji_nn, qij_nosw_nn, v_nn, plf, qlf = self.decompose_vars_z(
+            z)
         pij = pij_nn * self.bigM  # pij_min = 0; don't enforce any power flow constraints here
         pji = pji_nn * self.bigM  # pji_min = 0; don't enforce any power flow constraints here
         qji = qji_nn * self.bigM  # qji_min = 0; don't enforce any power flow constraints here
         qij_nosw = qij_nosw_nn * self.bigM
         v = v_nn*self.vUpp + (1-v_nn)*self.vLow
-        z_physical = torch.hstack((zji, y_nol, pij, pji, qji, qij_nosw, v, plf.unsqueeze(1), qlf.unsqueeze(1)))
+        z_physical = torch.hstack(
+            (zji, y_nol, pij, pji, qji, qij_nosw, v, plf.unsqueeze(1), qlf.unsqueeze(1)))
 
         return z_physical
 
@@ -194,19 +209,21 @@ class Utils:
         # parameter tau controls sharpness of the sigmoid function applied to binary variables zji. larger = sharper
         tau = 5
 
-        # z = mixedIntFnc(self)(nnout, tau) 
-        z = self.mixedIntOutput(nnout, tau) 
+        # z = mixedIntFnc(self)(nnout, tau)
+        z = self.mixedIntOutput(nnout, tau)
 
         # z = [zji, y\last, pij, pji, qji, {qij}sw, v\f, plf, qlf]  # initial guess from NN
         # zji and y\last are binary vars, which have already been processed to be between 0 and 1
         # process pij, pji, qji, {qij}_sw, v\f, plf, qlf to be within physical bounds
-        zji, y_nol, pij_nn, pji_nn, qji_nn, qij_nosw_nn, v_nn, plf, qlf = self.decompose_vars_z(z)
+        zji, y_nol, pij_nn, pji_nn, qji_nn, qij_nosw_nn, v_nn, plf, qlf = self.decompose_vars_z(
+            z)
         pij = pij_nn * self.bigM  # pij_min = 0; don't enforce any power flow constraints here
         pji = pji_nn * self.bigM  # pji_min = 0; don't enforce any power flow constraints here
         qji = qji_nn * self.bigM  # qji_min = 0; don't enforce any power flow constraints here
         qij_nosw = qij_nosw_nn * self.bigM
         v = v_nn*self.vUpp + (1-v_nn)*self.vLow
-        z_physical = torch.hstack((zji, y_nol, pij, pji, qji, qij_nosw, v, plf.unsqueeze(1), qlf.unsqueeze(1)))
+        z_physical = torch.hstack(
+            (zji, y_nol, pij, pji, qji, qij_nosw, v, plf.unsqueeze(1), qlf.unsqueeze(1)))
 
         return z_physical
 
@@ -214,7 +231,8 @@ class Utils:
         bin_vars_zji = z[:, 0:self.M]
         bin_vars_y = z[:, self.M:(self.M + self.numSwitches-1)]
         cont_vars = z[:, self.M+self.numSwitches-1:None]
-        output_cont = nn.Sigmoid()(cont_vars) #classical sigmoid for continuous variables
+        # classical sigmoid for continuous variables
+        output_cont = nn.Sigmoid()(cont_vars)
 
         # modified sigmoid
         output_bin_zji = torch.clamp(2/(1+torch.exp(-tau*bin_vars_zji)) - 1, 0)
@@ -222,7 +240,7 @@ class Utils:
         batchsize = z.size(dim=0)
         # r = np.random.randint(-1, 1, batchsize)
 
-        ## PHYSIC INFORMED ROUNDING
+        # PHYSIC INFORMED ROUNDING
 
         L_min = (self.N - 1) - (self.M - self.numSwitches)
         y_sorted_inds = torch.argsort(bin_vars_y)  # sorted in ascending order
@@ -232,15 +250,15 @@ class Utils:
         output_bin_y = torch.clamp(bin_vars_y, 0, 1)
         # ceil the largest L values to 1, floor the smallest size(bin_y)-L values to 0
         rows_to_ceil = np.hstack((np.arange(0, batchsize).repeat(L_min),
-                                  )) # np.where(r == 0)[0]
+                                  ))  # np.where(r == 0)[0]
         cols_to_ceil = np.hstack((y_sorted_inds[:, -L_min:].flatten(),
-                                  )) # y_sorted_inds[np.where(r == 0)[0], -L_min-1]
+                                  ))  # y_sorted_inds[np.where(r == 0)[0], -L_min-1]
 
         num_to_zero = bin_vars_y.size(dim=1) - L_min - 1
         rows_to_floor = np.hstack((np.arange(0, batchsize).repeat(num_to_zero),
-                                   )) # np.where(r == -1)[0]
+                                   ))  # np.where(r == -1)[0]
         cols_to_floor = np.hstack((y_sorted_inds[:, 0:num_to_zero].flatten(),
-                                   )) # y_sorted_inds[np.where(r == -1)[0], -L_min-1]
+                                   ))  # y_sorted_inds[np.where(r == -1)[0], -L_min-1]
 
         # output_bin_y[rows_to_ceil, cols_to_ceil] = output_bin_y[rows_to_ceil, cols_to_ceil].ceil()
         # output_bin_y[rows_to_floor, cols_to_floor] = output_bin_y[rows_to_floor, cols_to_floor].floor()
@@ -254,14 +272,21 @@ class Utils:
         z, zc = dc3Function(self)(x, z)
         return z, zc
 
+    def decompose_vars_x(self, x):
+        # x = [pl\f, ql\f]  # input to NN
+        pl = x[:, 0:self.N - 1]
+        ql = x[:, self.N - 1:None]
+        return pl, ql
+
 
 def dc3Function(data):
     class dc3FunctionFn(Function):
         @staticmethod
-        def forward(ctx, x, z): #equality constraint
+        def forward(ctx, x, z):  # equality constraint
             # this will perform the completion step
             pl, ql = data.decompose_vars_x(x)
-            zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = data.decompose_vars_z(z)
+            zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = data.decompose_vars_z(
+                z)
             numsw = data.numSwitches
             ncases = x.shape[0]
 
@@ -271,19 +296,23 @@ def dc3Function(data):
             zij[:, data.M - numsw:-1] = y_nol - zji[:, data.M - numsw:-1]
             zij[:, -1] = y_rem - zji[:, -1]
 
-            pg = torch.hstack((plf.unsqueeze(1), pl)).T + torch.mm(data.A.double(), torch.transpose(pij-pji, 0, 1))
+            pg = torch.hstack((plf.unsqueeze(1), pl)).T.double(
+            ) + torch.mm(data.A.double(), torch.transpose(pij-pji, 0, 1).double())
 
             # TODO check if this is implemented correctly with the A*v step - should be good
             vall = torch.hstack((torch.ones(ncases, 1), v))
-            delQ = torch.div((-0.5 * torch.matmul(-vall, data.A.double()) - torch.mul((pij-pji), data.Rall)), data.Xall)
+            delQ = torch.div((-0.5 * torch.matmul(-vall.double(), data.A.double()
+                                                  ) - torch.mul((pij-pji).double(), data.Rall)), data.Xall)
             delQ_nosw = delQ[:, 0:-numsw]
 
             qij_rem = delQ_nosw + qji[:, 0:-numsw]
             qij = torch.hstack((qij_rem, qij_sw))
 
             # TODO: Feb 1, 2022: check if this is correct
-            delQ = torch.hstack((delQ_nosw, qij_sw - qji[:, data.M-numsw:]))  # Feb 1, 2022 edit on last term; was qji[:, numsw:])
-            qg = torch.hstack((qlf.unsqueeze(1), ql)).T + torch.mm(data.A.double(), torch.transpose(delQ, 0, 1))
+            # Feb 1, 2022 edit on last term; was qji[:, numsw:])
+            delQ = torch.hstack((delQ_nosw, qij_sw - qji[:, data.M-numsw:]))
+            qg = torch.hstack((qlf.unsqueeze(1), ql)).T + \
+                torch.mm(data.A.double(), torch.transpose(delQ, 0, 1))
 
             zc = torch.hstack((zij, y_rem.unsqueeze(1), qij_rem, pg.T, qg.T))
             zc.requires_grad = True
@@ -299,6 +328,7 @@ def dc3Function(data):
             return dl_dx, dl_dz
 
     return dc3FunctionFn.apply
+
 
 def sigFnc(data):
     class MixedSigmoid(Function):
@@ -325,8 +355,10 @@ def sigFnc(data):
             data = ctx.data
             tau = ctx.tau
 
-            bin_grad = grad_output[:, 0:data.M + data.numSwitches - 1].clone()  # what is clone() used for?
-            cont_grad = grad_output[:, data.M + data.numSwitches - 1:None].clone()
+            # what is clone() used for?
+            bin_grad = grad_output[:, 0:data.M + data.numSwitches - 1].clone()
+            cont_grad = grad_output[:, data.M +
+                                    data.numSwitches - 1:None].clone()
             bin_vars = z[:, 0:data.M + data.numSwitches - 1]
             cont_vars = z[:, data.M + data.numSwitches - 1:None]
 
@@ -339,7 +371,8 @@ def sigFnc(data):
             # bin_grad *= torch.exp(-bin_vars) / torch.square(1 + torch.exp(-bin_vars))
 
             # derivative of traditional sigmoid - do we need to do this explicitly?
-            cont_grad *= torch.exp(-cont_vars) / torch.square(1 + torch.exp(-cont_vars))
+            cont_grad *= torch.exp(-cont_vars) / \
+                torch.square(1 + torch.exp(-cont_vars))
 
             # grad_input = grad_output.clone()
             grad_input = torch.hstack((bin_grad, cont_grad))
@@ -364,13 +397,15 @@ def mixedIntFnc(data):
             output_cont = nn.Sigmoid()(cont_vars)
             # output_bin = nn.Sigmoid()(bin_vars)
 
-            output_bin_zji = torch.clamp(2/(1+torch.exp(-tau*bin_vars_zji)) - 1, 0)
+            output_bin_zji = torch.clamp(
+                2/(1+torch.exp(-tau*bin_vars_zji)) - 1, 0)
 
             batchsize = z.size(dim=0)
             r = np.random.randint(-1, 1, batchsize)
             L_min = (data.N - 1) - (data.M - data.numSwitches)
-            y_sorted_inds = torch.argsort(bin_vars_y)  # sorted in ascending order
-           
+            # sorted in ascending order
+            y_sorted_inds = torch.argsort(bin_vars_y)
+
             output_bin_y_test = bin_vars_y.abs()
             # ceil the largest L values to 1, floor the smallest size(bin_y)-L values to 0
             rows_to_ceil = np.hstack((np.arange(0, batchsize).repeat(L_min),
@@ -384,10 +419,13 @@ def mixedIntFnc(data):
             cols_to_floor = np.hstack((y_sorted_inds[:, 0:num_to_zero].flatten(),
                                        y_sorted_inds[np.where(r == -1)[0], -L_min-1]))
 
-            output_bin_y_test[rows_to_ceil, cols_to_ceil] = output_bin_y_test[rows_to_ceil, cols_to_ceil].ceil()
-            output_bin_y_test[rows_to_floor, cols_to_floor] = output_bin_y_test[rows_to_floor, cols_to_floor].floor()
+            output_bin_y_test[rows_to_ceil,
+                              cols_to_ceil] = output_bin_y_test[rows_to_ceil, cols_to_ceil].ceil()
+            output_bin_y_test[rows_to_floor,
+                              cols_to_floor] = output_bin_y_test[rows_to_floor, cols_to_floor].floor()
 
-            z_new = torch.hstack((output_bin_zji, output_bin_y_test, output_cont))
+            z_new = torch.hstack(
+                (output_bin_zji, output_bin_y_test, output_cont))
 
             ctx.save_for_backward(z_new)
             ctx.data = data
@@ -400,8 +438,10 @@ def mixedIntFnc(data):
             data = ctx.data
             tau = ctx.tau
 
-            bin_grad = grad_output[:, 0:data.M + data.numSwitches - 1].clone()  # what is clone() used for?
-            cont_grad = grad_output[:, data.M + data.numSwitches - 1:None].clone()
+            # what is clone() used for?
+            bin_grad = grad_output[:, 0:data.M + data.numSwitches - 1].clone()
+            cont_grad = grad_output[:, data.M +
+                                    data.numSwitches - 1:None].clone()
             bin_vars = z[:, 0:data.M + data.numSwitches - 1]
             cont_vars = z[:, data.M + data.numSwitches - 1:None]
 
@@ -414,7 +454,8 @@ def mixedIntFnc(data):
             # bin_grad *= torch.exp(-bin_vars) / torch.square(1 + torch.exp(-bin_vars))
 
             # derivative of traditional sigmoid - do we need to do this explicitly?
-            cont_grad *= torch.exp(-cont_vars) / torch.square(1 + torch.exp(-cont_vars))
+            cont_grad *= torch.exp(-cont_vars) / \
+                torch.square(1 + torch.exp(-cont_vars))
 
             # grad_input = grad_output.clone()
             grad_input = torch.hstack((bin_grad, cont_grad))
@@ -422,3 +463,25 @@ def mixedIntFnc(data):
             return grad_input, None
 
     return MixedIntOutput.apply
+
+
+def xgraph_xflatten(x_graph, batch_size, first_node=False):
+    # TODO see how the epochs
+    """
+    xgraph_xflatten returns the input of the GNN as expected by the NN
+
+    :param x_graph: the input of the GNN
+    :param num_features: the number of features per node
+    :param batch_size: the size of the batches
+
+    :return: the input of the GNN as expected by the NN
+    """
+    graph_3d = torch.reshape(x_graph, (batch_size,
+                                       int(x_graph.shape[0]/batch_size),
+                                       x_graph.shape[1]))
+
+    if not first_node:
+        graph_3d = graph_3d[:, 1::, :]
+    xNN_3d = torch.transpose(graph_3d, 1, 2)
+    xNN = torch.flatten(xNN_3d, 1, 2)
+    return xNN
