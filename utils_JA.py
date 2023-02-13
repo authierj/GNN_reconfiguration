@@ -16,7 +16,7 @@ class Utils:
         self.ql = data.ql
         self.Rall = data.Rall
         self.Xall = data.Xall
-        self.pgUpp = data.pgUppco
+        self.pgUpp = data.pgUpp
         self.pgLow = data.pgLow
         self.qgUpp = data.qgUpp
         self.qgLow = data.qgLow
@@ -25,6 +25,11 @@ class Utils:
         self.Rall = data.Rall
         self.vUpp = data.vUpp
         self.vLow = data.vLow
+        self.Aabs = data.Aabs
+        self.dineq_dz_fullmat = data.dineq_dz_fullmat
+        self.dzc_dz_mat = data.dzc_dz_mat
+        self.dzc_dz = data.dzc_dz
+        self.dzc_dx = data.dzc_dx
 
     def decompose_vars_z(self, z):
         """
@@ -90,8 +95,8 @@ class Utils:
 
     def eq_resid(self, z, zc):
         # should be zero, but implementing it as a debugging step
-        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(
-            z)
+        # pl, ql = self.decompose_vars_x(x)
+        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
         qij = torch.hstack((qij_nosw, qij_sw))
@@ -133,28 +138,31 @@ class Utils:
         ncases = z.shape[0]
         vall = torch.hstack((torch.ones(ncases, 1), v))
 
+        pg_upp_resid = pg[:, 1:None] - self.pgUpp[idx, :]
+        pg_low_resid = self.pgLow[idx, :] - pg[:, 1:None]
+
+        qg_upp_resid = qg[:, 1:None] - self.qgUpp[idx, :]
+        qg_low_resid = self.qgLow[idx, :] - qg[:, 1:None]
+
+        v_upp_resid = v-self.vUpp
+        v_low_resid = v-self.vLow
+
+        # TODO rewrite these and find better names
+        matrix1 = torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)),
+                           vall.T.double()).T + 2 * (torch.mul((pij - pji), self.Rall) + torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None] - self.bigM * (1 - y)
+
+        matrix2 = -torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)),
+                            vall.T.double()).T - 2 * (torch.mul((pij - pji), self.Rall) + torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None] - self.bigM * (1 - y)
+
         # TODO rewrite that in multiple steps
-        resids = torch.cat([pg[:, 1:None] - self.pgUpp[idx, :],
-                            self.pgLow[idx, :] - pg[:, 1:None],
-                            qg[:, 1:None] - self.qgUpp[idx, :],
-                            self.qgLow[idx, :] - qg[:, 1:None],
+        resids = torch.cat([pg_upp_resid, pg_low_resid, qg_upp_resid, qg_low_resid,
                             -torch.reshape(plf, (-1, 1)),
                             -torch.reshape(qlf, (-1, 1)),
                             -torch.reshape(pg[:, 0], (-1, 1)),
-                            -torch.reshape(qg[:, 0], (-1, 1)), v-self.vUpp,
-                            self.vLow - v, pij-self.bigM, -pij, pji-self.bigM,
+                            -torch.reshape(qg[:, 0], (-1, 1)), v_upp_resid,
+                            v_low_resid, pij-self.bigM, -pij, pji-self.bigM,
                             -pji, qij-self.bigM, -qij, qji - self.bigM, -qji,
-                            -zij, -zji, -y,
-                            torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
-                                np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T +
-                            2 * (torch.mul((pij - pji), self.Rall) +
-                                 torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
-                            - self.bigM * (1 - y),
-                            -torch.mm(torch.neg(torch.transpose(torch.index_select(self.A, 1, torch.from_numpy(
-                                np.arange(self.M - self.numSwitches, self.M)).long()), 0, 1)), vall.T).T -
-                            2 * (torch.mul((pij - pji), self.Rall) +
-                                 torch.mul((qij - qji), self.Xall))[:, -self.numSwitches:None]
-                            - self.bigM * (1 - y),
+                            -zij, -zji, -y, matrix1, matrix2,
                             1 - torch.mm(self.Aabs.double(), (zij+zji).T).T
                             ], dim=1)
 
