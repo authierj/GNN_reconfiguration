@@ -4,7 +4,7 @@ import torch
 
 import sys
 sys.path.insert(1, os.path.join(sys.path[0], os.pardir, os.pardir))
-from datasets.data_processing import OPTreconfigure
+from data_processing import OPTreconfigure
 
 network_ID = 'node4'  #'baranwu33'
 # dataflag='partial'
