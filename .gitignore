@@ -7,3 +7,5 @@ dataprofiles/HawaiiData/.DS_Store
 dataprofiles/.DS_Store
 .idea/
 results/
+plots/*
+
