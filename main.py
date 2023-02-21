@@ -20,8 +20,9 @@ from plots import *
 
 
 def main(args):
+    dataset_name = args['network'] + '_' + 'dataset'
+    filepath = 'datasets/' + args['network'] + '/processed/' + dataset_name
 
-    filepath = 'datasets/node4/processed/node4_dataset'
     try:
         with open(filepath, 'rb') as f:
             data = pickle.load(f)
@@ -42,30 +43,37 @@ def main(args):
     test_loader = DataLoader(
         test_graphs, batch_size=len(test_graphs), shuffle=True)
 
-    hidden_features_GNN = args['hiddenFeatures']
     output_features_GNN = args['outputFeatures']
+    dropout = args['dropout']
 
-    GNN = getattr(graph_extraction, args['GNN'])(input_features=2, hidden_channels=hidden_features_GNN,
-                                                 output_classes=output_features_GNN, layers=args['numLayers'])
+    GNN = getattr(graph_extraction, args['GNN'])(input_features=2, hidden_channels=args['hiddenFeatures'],
+                                                 output_classes=output_features_GNN, layers=args['numLayers'], dropout=dropout)
 
     readout = getattr(readout_layer, args['readout'])(input_features=output_features_GNN*data.M,
                                                       hidden_channels=output_features_GNN*data.M,
-                                                      output_classes=data.zdim, layers=2, dropout=0.5)
+                                                      output_classes=data.zdim, layers=2, dropout=dropout)
 
     model = MyEnsemble(GNN, readout, completion_step=args['useCompl'])
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args['lr'], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc
 
-    train_losses = np.zeros(args['epochs'])
-    valid_losses = np.zeros(args['epochs'])
-    for i in range(args['epochs']):
-        train_losses[i] = train(model, optimizer, cost_fnc, train_loader, args, utils)
-        valid_losses[i] = test_or_validate(model, cost_fnc, valid_loader, args, utils)
+    num_epochs = args['epochs']
+    train_losses = np.zeros(num_epochs)
+    valid_losses = np.zeros(num_epochs)
+    for i in range(num_epochs):
+        train_losses[i] = train(
+            model, optimizer, cost_fnc, train_loader, args, utils)
+        valid_losses[i] = test_or_validate(
+            model, cost_fnc, valid_loader, args, utils)
 
-        print(f'Epoch: {i:03d}, Train Loss: {train_losses[i]:.4f}, Valid Loss: {valid_losses[i]:.4f}')
+        print(
+            f'Epoch: {i:03d}, Train Loss: {train_losses[i]:.4f}, Valid Loss: {valid_losses[i]:.4f}')
 
-    #TODO plots
+    if args['saveModel']:
+        description = '_'.join(args['network'], args['GNN'], args['readout'])
+        torch.save(model.state_dict, os.path.join('trained_nn', description))
+
     loss_cruve(train_losses, valid_losses, args)
 
 def train(model, optimizer, criterion, loader, args, utils):
@@ -73,7 +81,8 @@ def train(model, optimizer, criterion, loader, args, utils):
 
     epoch_loss = 0
     for data in loader:
-        z_hat, zc_hat = model(data.x, data.edge_index, training=True, utils=utils)
+        z_hat, zc_hat = model(data.x, data.edge_index,
+                              training=True, utils=utils)
         x_nn = xgraph_xflatten(data.x, args['batchSize'])
         # z_hat, zc_hat = utils.complete(x_nn, z)
 
@@ -83,14 +92,11 @@ def train(model, optimizer, criterion, loader, args, utils):
                                              criterion, utils, args, data.idx,
                                              train=True)
 
-        # all_soft_weights.append(soft_weight.tolist())
-        # all_soft_weights.append(soft_weight if isinstance(soft_weight, int) else soft_weight.tolist())
-
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
         epoch_loss += train_loss.sum()
-        
+
     return epoch_loss/len(loader)
 
 
@@ -99,7 +105,8 @@ def test_or_validate(model, criterion, loader, args, utils):
 
     test_loss_total = 0
     for data in loader:
-        z_hat, zc_hat = model(data.x, data.edge_index, training=False, utils=utils)
+        z_hat, zc_hat = model(data.x, data.edge_index,
+                              training=False, utils=utils)
         x_nn = xgraph_xflatten(data.x, 400)
         # z_hat, zc_hat = utils.complete(x_nn, z)
 
@@ -232,12 +239,11 @@ class MyEnsemble(nn.Module):
         self.readout = readout
         self.completion_step = completion_step
 
-
     def forward(self, x, graph, training, utils):
         xg = self.GNN(x, graph)
 
         if training:
-            x_input =xgraph_xflatten(x, 200, first_node=False)
+            x_input = xgraph_xflatten(x, 200, first_node=False)
             x_nn = xgraph_xflatten(xg, 200, first_node=True)
         else:
             x_input = xgraph_xflatten(x, 400, first_node=False)
@@ -246,7 +252,7 @@ class MyEnsemble(nn.Module):
         out = self.readout(x_nn)
         z = utils.output_layer(out)
 
-        #TODO process x to have correct format to be sent to usual functions
+        # TODO process x to have correct format to be sent to usual functions
         if self.completion_step:
             z, zc = utils.complete(x_input, z)
             zc_tensor = torch.stack(list(zc), dim=0)
@@ -305,6 +311,9 @@ if __name__ == '__main__':
                         help='whether to save all stats, or just those from latest epoch')
     parser.add_argument('--resultsSaveFreq', type=int, default=50,
                         help='how frequently (in terms of number of epochs) to save stats to file')
+    parser.add_argument('--saveModel', type=bool, default=False,
+                        help='determine if the trained model will be saved')
+    parser.add_argument('--dropout', type=float, default=0.5)
 
     args = parser.parse_args()
     main(vars(args))
