@@ -8,36 +8,36 @@ from torch_geometric.data import Data as Graph
 
 
 class GraphDataSet(InMemoryDataset):
-
-    def __init__(self, root='datasets/node4'):
+    def __init__(self, root="datasets/node4"):
         super(GraphDataSet, self).__init__(root)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
     @property
     def raw_file_names(self):
-        return 'casedata_graph'
+        return "casedata_graph"
 
     @property
     def processed_file_names(self):
-        return 'test_graph.pt'
+        return "test_graph.pt"
 
     def process(self):
         # Read data into huge `Data` list.
         path = os.path.join(self.raw_dir, self.raw_file_names)
         data = spio.loadmat(path)
 
-        cases = data['case_data_all'][0][0]
-        network = data['network_4_data'][0, 0]
-        solutions = data['res_data_all'][0][0]
+        cases = data["case_data_all"][0][0]
+        network = data["network_4_data"][0, 0]
+        solutions = data["res_data_all"][0][0]
 
-        edges = from_np(network['bi_edge_index']-1).long()
-        pl = cases['PL']
-        ql = cases['QL']
-        z = solutions['z']
-        zc = solutions['zc']
+        edges = from_np(network["bi_edge_index"] - 1).long()
+        pl = cases["PL"]
+        ql = cases["QL"]
+        z = solutions["z"]
+        zc = solutions["zc"]
 
         perm = np.arange(pl.shape[1])
-        np.random.shuffle(perm)
+        rng = np.random.default_rng(1)
+        rng.shuffle(perm)
 
         pl = pl[:, perm].T
         ql = ql[:, perm].T
@@ -58,5 +58,5 @@ class GraphDataSet(InMemoryDataset):
         torch.save((data, slices), self.processed_paths[0])
 
 
-dataset = GraphDataSet(root='datasets/node4')
+dataset = GraphDataSet(root="datasets/node4")
 print("HI()")
