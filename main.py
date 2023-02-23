@@ -1,203 +1,156 @@
-"trying to implement a simple GNN"
-
 # Extern
 import torch
 import numpy as np
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import pickle
-
-from torch_geometric.nn import GCNConv
-from torch_geometric.data import Data
+import argparse
 from torch_geometric.loader import DataLoader
-
+from torch_geometric.nn.models import MLP
 
 # Local
-from graph_NN import GCN
+import NN_layers.graph_NN as graph_extraction
 from utils_JA import Utils
 from utils_JA import xgraph_xflatten
-from readout import GlobalMLP
-import default_args
+import NN_layers.readout as readout_layer
+from datasets.graphdataset import GraphDataSet
+from plots import *
 
 
-def main():
-    print("Hello")
+def main(args):
+    dataset_name = args["network"] + "_" + "dataset_test"
+    filepath = "datasets/" + args["network"] + "/processed/" + dataset_name
 
-    filepath = 'node4_dataset'
-    batch_size = 200
     try:
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             data = pickle.load(f)
     except FileNotFoundError:
-        print('Network file does not exist')
+        print("Network file does not exist")
 
-    args = default_args.method_default_args()
     utils = Utils(data)
 
-    # Once we use bigger examples, we should use the Dataset Class of GPY
-    dataset_train, dataset_valid, dataset_test = create_graph_datasets(data)
+    graph_dataset = GraphDataSet(root="datasets/node4")
+    train_graphs = graph_dataset[0:3200]
+    valid_graphs = graph_dataset[3200:3600]
+    test_graphs = graph_dataset[3600:4000]
 
-    train_loader = DataLoader(dataset_train,
-                              batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(dataset_valid, len(dataset_valid), shuffle=True)
-    test_loader = DataLoader(dataset_test, len(dataset_test), shuffle=True)
+    batch_size = args["batchSize"]
+    train_loader = DataLoader(train_graphs, batch_size=batch_size, shuffle=True)
+    valid_loader = DataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
-    hidden_features_GNN = 12
-    output_features_GNN = 12
-    GNN = GCN(input_features=2, hidden_channels=hidden_features_GNN,
-              output_classes=output_features_GNN, layers=4)
+    output_features_GNN = args["outputFeatures"]
+    dropout = args["dropout"]
 
-    hidden_features_MLP = 12
-    readout = GlobalMLP(input_features=output_features_GNN*data.M, hidden_channels=hidden_features_MLP*data.M,
-                        output_classes=data.zdim, layers=2, dropout=0.5)
-    print(readout)
-    model = MyEnsemble(GNN, readout)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=0.01, weight_decay=5e-4)
+    GNN = getattr(graph_extraction, args["GNN"])(
+        input_features=2,
+        hidden_channels=args["hiddenFeatures"],
+        output_classes=output_features_GNN,
+        layers=args["numLayers"],
+        dropout=dropout,
+    )
+
+    # readout = getattr(readout_layer, args["readout"])(
+    #     input_features=output_features_GNN * data.M,
+    #     hidden_features=output_features_GNN * data.M,
+    #     output_classes=data.zdim,
+    #     layers=2,
+    #     dropout=dropout,
+    # )
+
+    readout = MLP(
+        [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
+    )
+
+    model = MyEnsemble(GNN, readout, completion_step=args["useCompl"])
+    optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc
 
-    for epoch in range(1, 100):
-        loss = train(model, optimizer, cost_fnc, train_loader, args, utils)
-        print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}')
-        eval_loss = test_or_validate(model, cost_fnc, valid_loader, args, utils)
-        print(f'Eval_Loss: {eval_loss:.4f}')
+    num_epochs = args["epochs"]
+    train_losses = np.zeros(num_epochs)
+    valid_losses = np.zeros(num_epochs)
+    for i in range(num_epochs):
+        train_losses[i] = train(model, optimizer, cost_fnc, train_loader, args, utils)
+        valid_losses[i] = test_or_validate(model, cost_fnc, valid_loader, args, utils)
 
-    # TODO test here
+        print(
+            f"Epoch: {i:03d}, Train Loss: {train_losses[i]:.4f}, Valid Loss: {valid_losses[i]:.4f}"
+        )
 
+    if args["saveModel"]:
+        description = "_".join((args["network"], args["GNN"], args["readout"]))
+        torch.save(model.state_dict, os.path.join("trained_nn", description))
 
-def create_graph_datasets(data):
-    """
-    create_graph_datasets return the graph version of the test, validation and 
-    testing datasets of the data given by filepath
-
-    :param filepath: the path to the data
-    :return: train, valid and test graph datasets  
-    """
-
-    def extract_node_features(index):
-        features = torch.reshape(data.x[index, :], (num_features, data.N-1))
-        features = features.t()
-        features = torch.cat((torch.zeros(1, num_features), features), 0)
-        return features
-
-    edge_index = edge_index_calculation(data.A)
-    num_features = 2
-
-    dataset_train = []
-    dataset_valid = []
-    dataset_test = []
-
-    for i in range(data.train_idx[0], data.train_idx[1]):
-        features = extract_node_features(i)
-        graph_data = Data(x=features.float(), edge_index=edge_index, idx=i,
-                          y=data.trainY[i, :])
-        # graph_data.validate(raise_on_error=True)
-        dataset_train.append(graph_data)
-
-    for i in range(data.valid_idx[0], data.valid_idx[1]):
-        features = extract_node_features(i)
-        graph_data = Data(x=features.float(), edge_index=edge_index, idx=i,
-                          y=data.validY[i-data.valid_idx[0], :])
-        dataset_valid.append(graph_data)
-
-    for i in range(data.test_idx[0], data.num):
-        features = extract_node_features(i)
-        graph_data = Data(x=features.float(), edge_index=edge_index, idx=i,
-                          y=data.testY[i-data.test_idx[0], :])
-        dataset_test.append(graph_data)
-
-    return dataset_train, dataset_valid, dataset_test
-
-
-def edge_index_calculation(A):
-    """
-    edge_index_calculation calculates the Graph connectivity in COO format with 
-    shape [2, 2*num_edges]
-
-    :param A: the negative incidence matrix in sparse format
-    :return: the edge index tensor with shape [2,2*num_edges]
-    """
-
-    A = A.to_dense()
-
-    A_indexes_pos = torch.stack(torch.where(A == 1))
-    A_indexes_neg = torch.stack(torch.where(A == -1))
-
-    ingoing_vertices = A_indexes_pos[0, :]
-    ingoing_vertices_ordered = ingoing_vertices[A_indexes_pos[1, :]]
-
-    outgoing_vertices = A_indexes_neg[0, :]
-    outgoing_vertices_ordered = outgoing_vertices[A_indexes_neg[1, :]]
-
-    # Graph connectivity in COO format with shape [2, num_edges] (directed graph)
-    edge_index_directed = torch.stack((ingoing_vertices_ordered,
-                                       outgoing_vertices_ordered))
-
-    # Graph connectivity in COO format with shape [2, 2*num_edges] (undirected graph)
-    edge_index_undirected = torch.cat((edge_index_directed,
-                                       torch.flip(edge_index_directed, (0,))), 1)
-
-    return edge_index_undirected
+    loss_cruve(train_losses, valid_losses, args)
 
 
 def train(model, optimizer, criterion, loader, args, utils):
     model.train()
 
     epoch_loss = 0
-    i=0
     for data in loader:
-        z = model(data.x, data.edge_index, training=True)
-        x_nn = xgraph_xflatten(data.x, args['batchSize'])
-        z_hat, zc_hat = utils.complete(x_nn, z)
+        z_hat, zc_hat, x_input = model(data.x, data.edge_index, utils=utils)
 
-        Znew_train, ZCnew_train = grad_steps(x_nn, z_hat, zc_hat, args, utils,
-                                             data.idx, plotFlag=False)
-        train_loss, soft_weight = total_loss(x_nn, Znew_train, ZCnew_train,
-                                             criterion, utils, args, data.idx,
-                                             train=True)
-
-        # all_soft_weights.append(soft_weight.tolist())
-        # all_soft_weights.append(soft_weight if isinstance(soft_weight, int) else soft_weight.tolist())
+        Znew_train, ZCnew_train = grad_steps(
+            x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
+        )
+        train_loss, soft_weight = total_loss(
+            x_input,
+            Znew_train,
+            ZCnew_train,
+            criterion,
+            utils,
+            args,
+            data.idx,
+            train=True
+        )
 
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
-        epoch_loss = epoch_loss + train_loss.sum()
-        i += 1
-    return epoch_loss/i
+        epoch_loss += train_loss.detach().mean()
+
+    return epoch_loss / len(loader)
 
 
 def test_or_validate(model, criterion, loader, args, utils):
     model.eval()
 
     test_loss_total = 0
-    i=0
     for data in loader:
-        z = model(data.x, data.edge_index, training=False)
-        x_nn = xgraph_xflatten(data.x, 400)
-        z_hat, zc_hat = utils.complete(x_nn, z)
+        
+        with torch.no_grad():
+            z_hat, zc_hat, x_input = model(data.x, data.edge_index, utils=utils)
 
-        Znew_train, ZCnew_train = grad_steps(x_nn, z_hat, zc_hat, args, utils,
-                                             data.idx, plotFlag=False)
-        test_loss, soft_weight = total_loss(x_nn, Znew_train, ZCnew_train,
-                                             criterion, utils, args, data.idx,
-                                             train=False)
-        test_loss_total += test_loss.sum()
-        i += 1
-    return test_loss_total/2*i
+        Znew_train, ZCnew_train = grad_steps(
+            x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
+        )
+        test_loss, soft_weight = total_loss(
+            x_input,
+            Znew_train,
+            ZCnew_train,
+            criterion,
+            utils,
+            args,
+            data.idx,
+            train=False
+        )
+        test_loss_total += test_loss.detach().mean()
+
+    return test_loss_total / len(loader)
 
 
 def grad_steps(x, z, zc, args, utils, idx, plotFlag):
-    """ 
+    """
     absolutely no clue about what happens here
     """
 
-    take_grad_steps = args['useTrainCorr']
+    take_grad_steps = args["useTrainCorr"]
     # plotFlag = True
     if take_grad_steps:
-        lr = args['corrLr']
-        num_steps = args['corrTrainSteps']
-        momentum = args['corrMomentum']
+        lr = args["corrLr"]
+        num_steps = args["corrTrainSteps"]
+        momentum = args["corrMomentum"]
 
         z_new = z
         zc_new = zc
@@ -243,23 +196,25 @@ def grad_steps(x, z, zc, args, utils, idx, plotFlag):
             eq_check_c = utils.eq_resid(x, z_new_c, zc_new_c)
 
             if torch.max(eq_check) > 1e-6:
-                print('eq_update z broken'.format(torch.max(eq_check)))
+                print("eq_update z broken".format(torch.max(eq_check)))
             if torch.max(eq_check_c) > 1e-6:
-                print('eq_update z compl broken'.format(torch.max(eq_check_c)))
+                print("eq_update z compl broken".format(torch.max(eq_check_c)))
             if check_z > 1e-6:
-                print('z updates not consistent'.format(check_z))
+                print("z updates not consistent".format(check_z))
             if check_zc > 1e-6:
-                print('zc updates not consistent'.format(check_zc))
+                print("zc updates not consistent".format(check_zc))
 
             if plotFlag:
-                ineq_cost = torch.norm(utils.ineq_dist(
-                    z_new.detach(), zc_new.detach(), idx), dim=1)
-                ineq_costs = np.hstack(
-                    (ineq_costs, ineq_cost[0].detach().numpy()))
+                ineq_cost = torch.norm(
+                    utils.ineq_resid(z_new.detach(), zc_new.detach(), idx), dim=1
+                )
+                ineq_costs = np.hstack((ineq_costs, ineq_cost[0].detach().numpy()))
                 ineq_cost_c = torch.norm(
-                    utils.ineq_dist(z_new_c, zc_new_c, idx), dim=1)
+                    utils.ineq_resid(z_new_c, zc_new_c, idx), dim=1
+                )
                 ineq_costs_c = np.hstack(
-                    (ineq_costs_c, ineq_cost_c[0].detach().numpy()))
+                    (ineq_costs_c, ineq_cost_c[0].detach().numpy())
+                )
 
             iters += 1
 
@@ -274,46 +229,190 @@ def grad_steps(x, z, zc, args, utils, idx, plotFlag):
     else:
         return z, zc
 
-
 def total_loss(x, z, zc, criterion, utils, args, idx, train):
 
     obj_cost = criterion(z, zc)
     ineq_dist = utils.ineq_resid(z, zc, idx)  # gives update for vector weight
     ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
 
-    soft_weight = args['softWeight']
+    soft_weight = args["softWeight"]
 
-    if train and args['useAdaptiveWeight']:
-        if args['useVectorWeight']:
-            soft_weight_new = (soft_weight
-                               + args['adaptiveWeightLr']*ineq_dist.detach())
-            return obj_cost + torch.sum((soft_weight
-                                        + args['adaptiveWeightLr']*ineq_dist)
-                                        * ineq_dist, 1), soft_weight_new
+    if train and args["useAdaptiveWeight"]:
+        if args["useVectorWeight"]:
+            soft_weight_new = (
+                soft_weight + args["adaptiveWeightLr"] * ineq_dist.detach()
+            )
+            return (
+                obj_cost
+                + torch.sum(
+                    (soft_weight + args["adaptiveWeightLr"] * ineq_dist) * ineq_dist, 1
+                ),
+                soft_weight_new,
+            )
         else:
-            soft_weight_new = soft_weight + \
-                args['adaptiveWeightLr']*ineq_cost.detach()
-            return obj_cost + ((soft_weight + args['adaptiveWeightLr']*ineq_cost)
-                               * ineq_cost), soft_weight_new
+            soft_weight_new = (
+                soft_weight + args["adaptiveWeightLr"] * ineq_cost.detach()
+            )
+            return (
+                obj_cost
+                + ((soft_weight + args["adaptiveWeightLr"] * ineq_cost) * ineq_cost),
+                soft_weight_new,
+            )
 
-    return obj_cost + soft_weight*ineq_cost, soft_weight
+    return obj_cost + soft_weight * ineq_cost, soft_weight
 
 
 class MyEnsemble(nn.Module):
-    def __init__(self, GNN, readout):
+    def __init__(self, GNN, readout, completion_step):
         super().__init__()
         self.GNN = GNN
         self.readout = readout
+        self.completion_step = completion_step
 
-    def forward(self, x, graph, training):
-        x = self.GNN(x, graph)
-        if training:
-            x_nn = xgraph_xflatten(x, 200, first_node=True)
+    def forward(self, x, graph, utils):
+        # input of Rabab's NN
+        x_input = xgraph_xflatten(x, 200, first_node=False)
+
+        xg = self.GNN(x, graph)
+        x_nn = xgraph_xflatten(xg, 200, first_node=True)
+
+        out = self.readout(x_nn)
+        z = utils.output_layer(out)
+
+        if self.completion_step:
+            z, zc = utils.complete(x_input, z)
+            zc_tensor = torch.stack(list(zc), dim=0)
+            return z, zc_tensor, x_input
+
         else:
-            x_nn = xgraph_xflatten(x, 400, first_node=True)
-        x = self.readout(x_nn)
-        return x
+            return utils.process_output(x_input, out), x_input
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--network",
+        type=str,
+        default="node4",
+        choices=["node4", "IEEE13", "baranwu33"],
+        help="network identification",
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=100, help="number of neural network epochs"
+    )
+    parser.add_argument(
+        "--batchSize", type=int, default=200, help="training batch size"
+    )
+    parser.add_argument(
+        "--lr", type=float, default=1e-4, help="neural network learning rate"
+    )
+    parser.add_argument(
+        "--GNN", type=str, default="GCN", help="model for feature extraction layers"
+    )
+    parser.add_argument(
+        "--readout", type=str, default="GlobalMLP", help="model for readout layer"
+    )
+    parser.add_argument(
+        "--numLayers", type=int, default=2, help="the number of layers in the GNN"
+    )
+    parser.add_argument(
+        "--hiddenFeatures",
+        type=int,
+        default=4,
+        help="number of features in the hidden layers of the GNN",
+    )
+    parser.add_argument(
+        "--outputFeatures",
+        type=int,
+        default=4,
+        help="number of features in the last layer of the GNN",
+    )
+    parser.add_argument(
+        "--softWeight",
+        type=float,
+        default=100,
+        help="total weight given to constraint violations in loss",
+    )
+    parser.add_argument(
+        "--useAdaptiveWeight",
+        type=bool,
+        default=False,
+        help="whether constraint violation weight is time-varying",
+    )
+    parser.add_argument(
+        "--useVectorWeight",
+        type=bool,
+        default=False,
+        help="whether constraint violation weight is vector",
+    )
+    parser.add_argument(
+        "--adaptiveWeightLr",
+        type=float,
+        default=1e-2,
+        help="constraint violation adaptive weight learning rate",
+    )
+    parser.add_argument(
+        "--useCompl", type=bool, default=True, help="whether to use completion"
+    )
+    parser.add_argument(
+        "--useTrainCorr",
+        type=bool,
+        default=False,
+        help="whether to use correction during training",
+    )
+    parser.add_argument(
+        "--useTestCorr",
+        type=bool,
+        default=False,
+        help="whether to use correction during testing",
+    )
+    parser.add_argument(
+        "--corrTrainSteps",
+        type=int,
+        default=5,
+        help="number of correction steps during training",
+    )
+    parser.add_argument(
+        "--corrTestMaxSteps",
+        type=int,
+        default=5,
+        help="max number of correction steps during testing",
+    )
+    parser.add_argument(
+        "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
+    )
+    parser.add_argument(
+        "--corrLr",
+        type=float,
+        default=1e-4,
+        help="learning rate for correction procedure",
+    )
+    parser.add_argument(
+        "--corrMomentum",
+        type=float,
+        default=0.5,
+        help="momentum for correction procedure",
+    )
+    parser.add_argument(
+        "--saveAllStats",
+        type=bool,
+        default=True,
+        help="whether to save all stats, or just those from latest epoch",
+    )
+    parser.add_argument(
+        "--resultsSaveFreq",
+        type=int,
+        default=50,
+        help="how frequently (in terms of number of epochs) to save stats to file",
+    )
+    parser.add_argument(
+        "--saveModel",
+        type=bool,
+        default=False,
+        help="determine if the trained model will be saved",
+    )
+    parser.add_argument("--dropout", type=float, default=0.5)
+
+    args = parser.parse_args()
+    main(vars(args))
