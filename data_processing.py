@@ -3,16 +3,15 @@ import numpy as np
 import scipy.io as spio
 import scipy.sparse as sp
 from setup import *
+from torch_geometric.data import Data
 
-class OPTreconfigure():
-    def __init__(self, filename, dataflag='partial', valid_frac=0.1, test_frac=0.1):
-        #TODO look at this class, it's a mess
-        
+
+class OPTreconfigure:
+    def __init__(self, filename, dataflag="partial", valid_frac=0.1, test_frac=0.1):
         # load network data by name... - replace this function
         data = spio.loadmat(filename)
 
-        cases = data['case_data_all'][0][0]
-        
+        cases = data["case_data_all"][0][0]
         ########################## Data Extraction #############################
         pl = cases[0]
         ql = cases[1]
@@ -21,7 +20,9 @@ class OPTreconfigure():
         qgLow = cases[4]
         qgUpp = cases[5]
 
-        network = data['network_33_data'][0, 0]  # network_4_data for node4 test case
+        # network = data['network_33_data'][0, 0]
+        network = data["network_4_data"][0, 0]
+
         SBase = np.squeeze(network[0])
         VBase = np.squeeze(network[1])
         ZBase = np.squeeze(network[2])
@@ -47,38 +48,53 @@ class OPTreconfigure():
         self.swInds = swInds  # doesn't need to be a tensor bc an index
         self.numSwitches = numSwitches.item(0)
 
-
         ######################## Data processing ###############################
         interim = list(set(np.arange(0, M)) ^ set(self.swInds - 1))  # non-switch lines
-        self.Rall = torch.cat((torch.from_numpy(Rall[interim]),
-                                torch.from_numpy(Rall[swInds - 1])))
-        self.Xall = torch.cat((torch.from_numpy(Xall[interim]),
-                                torch.from_numpy(Xall[swInds - 1])))
-        
+        self.Rall = torch.cat(
+            (torch.from_numpy(Rall[interim]), torch.from_numpy(Rall[swInds - 1]))
+        )
+        self.Xall = torch.cat(
+            (torch.from_numpy(Xall[interim]), torch.from_numpy(Xall[swInds - 1]))
+        )
+
         mStart_reshaped = sp.hstack((mStart[:, interim], mStart[:, swInds - 1]))
         mEnd_reshaped = sp.hstack((mEnd[:, interim], mEnd[:, swInds - 1]))
         Acoo = mStart_reshaped - mEnd_reshaped
 
         mStart_tensor = torch.sparse_coo_tensor(
-            torch.vstack((torch.from_numpy(mStart_reshaped.tocoo().row),
-            torch.from_numpy(mStart_reshaped.tocoo().col))),
-            mStart_reshaped.data, torch.Size(mStart_reshaped.shape))  # indices, values, size
+            torch.vstack(
+                (
+                    torch.from_numpy(mStart_reshaped.tocoo().row),
+                    torch.from_numpy(mStart_reshaped.tocoo().col),
+                )
+            ),
+            mStart_reshaped.data,
+            torch.Size(mStart_reshaped.shape),
+        )  # indices, values, size
         mEnd_tensor = torch.sparse_coo_tensor(
-            torch.vstack((torch.from_numpy(mEnd_reshaped.tocoo().row),
-            torch.from_numpy(mEnd_reshaped.tocoo().col))),
-            mEnd_reshaped.data, torch.Size(mEnd_reshaped.shape))  # indices, values, size
+            torch.vstack(
+                (
+                    torch.from_numpy(mEnd_reshaped.tocoo().row),
+                    torch.from_numpy(mEnd_reshaped.tocoo().col),
+                )
+            ),
+            mEnd_reshaped.data,
+            torch.Size(mEnd_reshaped.shape),
+        )  # indices, values, size
 
         self.mStart = mStart_tensor
         self.mEnd = mEnd_tensor
         self.A = (mStart_tensor - mEnd_tensor).to_dense()
         self.Aabs = mStart_tensor + mEnd_tensor
-        
+
         # Pytorch want each row a case, each column a node
         # randomize the data so different cases appear in training, validation, testing
         perm = np.arange(pl.shape[1])
-        np.random.shuffle(perm)  # in place
+        rng = np.random.default_rng(1)
+        rng.shuffle(perm)  # in place
         # specific load + generation data
-        self.pl = torch.from_numpy(pl[:, perm].T)  # pl and ql given for all nodes except feeder
+        # pl and ql given for all nodes except feeder
+        self.pl = torch.from_numpy(pl[:, perm].T)
         self.ql = torch.from_numpy(ql[:, perm].T)
         # limits do NOT include feeder
         self.pgUpp = torch.from_numpy(pgUpp[:, perm].T)
@@ -101,17 +117,19 @@ class OPTreconfigure():
 
         # this is all the data - then it'll get split into train-test-valid
         # TODO fix dimensions for multiple test cases
-        x = np.concatenate([pl, ql])  # each row is a node, each column a test case
-        if dataflag.lower() == 'full':
+        # each row is a node, each column a test case
+        x = np.concatenate([pl, ql])
+        if dataflag.lower() == "full":
             # TODO LOAD SOLUTION DATA
-            solutions = data['res_data_all'][0][0]
+            solutions = data["res_data_all"][0][0]
             # z, zc, yalmiptime, solvertime, objVal
             # pg, qg, v, yij, zij, zji, pij, pji, qij, qji = get_solution_data()
             # z = np.concatenate([zji, yij[0:-1], pij, pji, qji, qij[-numSwitches:None], v[1:None], [pl[0, :]], [ql[0, :]]])
             # zc = np.concatenate([zij, [yij[-1, :]], qij[0:M-numSwitches], pg, qg])
             z = solutions[0]
             zc = solutions[1]
-            objvals = solutions[3]  # this was solutions[4] for node_4 because changes were made later.
+            # this was solutions[4] for node_4 because changes were made later.
+            objvals = solutions[3]
             # TODO: fix node_4 test case to match the new code
 
             self._z = torch.from_numpy(z[:, perm].T)
@@ -127,26 +145,28 @@ class OPTreconfigure():
         self._x = torch.t(torch.tensor(x, dtype=torch.get_default_dtype()))
         self._known = torch.t(torch.tensor(1, dtype=torch.get_default_dtype()))
 
-        self._xdim = 2*(N-1)  # x
-        self._zdim = 4*M+2*numSwitches+N  # only z
-        self._zcdim = 2*M+1-numSwitches+2*N  # only zc
+        self._xdim = 2 * (N - 1)  # x
+        self._zdim = 4 * M + 2 * numSwitches + N  # only z
+        self._zcdim = 2 * M + 1 - numSwitches + 2 * N  # only zc
         self._ydim = self._zdim + self._zcdim  # z, zc
         self._num = self._x.shape[0]  # number of test cases
-        self._neq = 2*M+1-numSwitches+2*N  # equalities
-            # M+1+N+N+M-#sw+M = 2*M + 1 + 2*N - numSwitches
-        self._nineq = 6*(N-1) + 4 + 10*M + 3*numSwitches + N  # inequalities
+        self._neq = 2 * M + 1 - numSwitches + 2 * N  # equalities
+        # M+1+N+N+M-#sw+M = 2*M + 1 + 2*N - numSwitches
+        self._nineq = 6 * (N - 1) + 4 + 10 * M + 3 * numSwitches + N  # inequalities
         self._nknowns = 1  # number of known vars (and not x) vfeed
 
-        ## Define train/valid/test split
+        # Define train/valid/test split
         self._valid_frac = valid_frac
         self._test_frac = test_frac
 
-        ### For Pytorch
+        # For Pytorch
         self._device = None
 
+        # GNN
+        # self.graph_train, self.graph_valid, self.graph_test = self.create_graph_datasets()
+
     def __str__(self):
-        return 'NETWORK-{}-{}-{}'.format(
-            self.N, self.valid_frac, self.test_frac)
+        return "NETWORK-{}-{}-{}".format(self.N, self.valid_frac, self.test_frac)
 
     @property
     def x(self):
@@ -247,25 +267,29 @@ class OPTreconfigure():
 
     @property
     def trainY(self):
-        res = self.y()
+        res = self._y
         if res is not None:
-            return res[:int(self.num * self.train_frac)]
+            return res[: int(self.num * self.train_frac)]
         else:
             return None
 
     @property
     def validY(self):
-        res = self.y()
+        res = self._y
         if res is not None:
-            return res[int(self.num * self.train_frac):int(self.num * (self.train_frac + self.valid_frac))]
+            return res[
+                int(self.num * self.train_frac) : int(
+                    self.num * (self.train_frac + self.valid_frac)
+                )
+            ]
         else:
             return None
 
     @property
     def testY(self):
-        res = self.y()
+        res = self._y
         if res is not None:
-            return res[int(self.num * (self.train_frac + self.valid_frac)):]
+            return res[int(self.num * (self.train_frac + self.valid_frac)) :]
         else:
             return None
 
@@ -287,6 +311,88 @@ class OPTreconfigure():
 
     def decompose_vars_x(self, x):
         # x = [pl\f, ql\f]  # input to NN
-        pl = x[:, 0:self.N - 1]
-        ql = x[:, self.N - 1:None]
+        pl = x[:, 0 : self.N - 1]
+        ql = x[:, self.N - 1 : None]
         return pl, ql
+
+    def edge_index_calculation(self):
+        """
+        edge_index_calculation calculates the Graph connectivity in COO format with
+        shape [2, 2*num_edges]
+
+        :return: the edge index tensor with shape [2,2*num_edges]
+        """
+
+        A = self.A.to_dense()
+
+        A_indexes_pos = torch.stack(torch.where(A == 1))
+        A_indexes_neg = torch.stack(torch.where(A == -1))
+
+        ingoing_vertices = A_indexes_pos[0, :]
+        ingoing_vertices_ordered = ingoing_vertices[A_indexes_pos[1, :]]
+
+        outgoing_vertices = A_indexes_neg[0, :]
+        outgoing_vertices_ordered = outgoing_vertices[A_indexes_neg[1, :]]
+
+        # Graph connectivity in COO format with shape [2, num_edges] (directed graph)
+        edge_index_directed = torch.stack(
+            (ingoing_vertices_ordered, outgoing_vertices_ordered)
+        )
+
+        # Graph connectivity in COO format with shape [2, 2*num_edges] (undirected graph)
+        edge_index_undirected = torch.cat(
+            (edge_index_directed, torch.flip(edge_index_directed, (0,))), 1
+        )
+
+        return edge_index_undirected
+
+    def create_graph_datasets(self):
+        """
+        create_graph_datasets return the graph version of the test, validation and
+        testing datasets of the data given by filepath
+
+        :return: train, valid and test graph datasets
+        """
+
+        def extract_node_features(index):
+            features = torch.reshape(self.x[index, :], (num_features, self.N - 1))
+            features = features.t()
+            features = torch.cat((torch.zeros(1, num_features), features), 0)
+            return features
+
+        edge_index = self.edge_index_calculation()
+        num_features = 2
+
+        dataset_train = []
+        dataset_valid = []
+        dataset_test = []
+
+        for i in range(self.train_idx[0], self.train_idx[1]):
+            features = extract_node_features(i)
+            graph_data = Data(
+                x=features.float(), edge_index=edge_index, idx=i, y=self.trainY[i, :]
+            )
+            # graph_data.validate(raise_on_error=True)
+            dataset_train.append(graph_data)
+
+        for i in range(self.valid_idx[0], self.valid_idx[1]):
+            features = extract_node_features(i)
+            graph_data = Data(
+                x=features.float(),
+                edge_index=edge_index,
+                idx=i,
+                y=self.validY[i - self.valid_idx[0], :],
+            )
+            dataset_valid.append(graph_data)
+
+        for i in range(self.test_idx[0], self.num):
+            features = extract_node_features(i)
+            graph_data = Data(
+                x=features.float(),
+                edge_index=edge_index,
+                idx=i,
+                y=self.testY[i - self.test_idx[0], :],
+            )
+            dataset_test.append(graph_data)
+
+        return dataset_train, dataset_valid, dataset_test

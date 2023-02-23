@@ -89,14 +89,11 @@ class Utils:
 
         return fncval
 
-    # Does not make sense to have this function, TODO look if problem if erased
-    def ineq_dist(self, z, zc, idx):
-        return self.ineq_resid(z, zc, idx)
-
     def eq_resid(self, z, zc):
         # should be zero, but implementing it as a debugging step
         # pl, ql = self.decompose_vars_x(x)
-        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
+        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(
+            z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
         qij = torch.hstack((qij_nosw, qij_sw))
@@ -263,6 +260,8 @@ class Utils:
                                   ))  # y_sorted_inds[np.where(r == 0)[0], -L_min-1]
 
         num_to_zero = bin_vars_y.size(dim=1) - L_min - 1
+        if num_to_zero < 0:
+            num_to_zero = 0
         rows_to_floor = np.hstack((np.arange(0, batchsize).repeat(num_to_zero),
                                    ))  # np.where(r == -1)[0]
         cols_to_floor = np.hstack((y_sorted_inds[:, 0:num_to_zero].flatten(),
@@ -290,7 +289,7 @@ class Utils:
 def dc3Function(data):
     class dc3FunctionFn(Function):
         @staticmethod
-        def forward(ctx, x, z):  # equality constraint
+        def forward(ctx, x, z):
             # this will perform the completion step
             pl, ql = data.decompose_vars_x(x)
             zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = data.decompose_vars_z(
@@ -319,8 +318,8 @@ def dc3Function(data):
             # TODO: Feb 1, 2022: check if this is correct
             # Feb 1, 2022 edit on last term; was qji[:, numsw:])
             delQ = torch.hstack((delQ_nosw, qij_sw - qji[:, data.M-numsw:]))
-            qg = torch.hstack((qlf.unsqueeze(1), ql)).T + \
-                torch.mm(data.A.double(), torch.transpose(delQ, 0, 1))
+            qg = (torch.hstack((qlf.unsqueeze(1), ql)).T +
+                  torch.mm(data.A.double(), torch.transpose(delQ, 0, 1)))
 
             zc = torch.hstack((zij, y_rem.unsqueeze(1), qij_rem, pg.T, qg.T))
             zc.requires_grad = True
@@ -481,6 +480,7 @@ def xgraph_xflatten(x_graph, batch_size, first_node=False):
     :param x_graph: the input of the GNN
     :param num_features: the number of features per node
     :param batch_size: the size of the batches
+    :param first_node: determine if the first node must be kept or not
 
     :return: the input of the GNN as expected by the NN
     """
