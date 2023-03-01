@@ -33,3 +33,18 @@ def loss_cruve(train_losses, valid_losses, args):
     if os.path.isfile(plot_path):
         os.remove(plot_path)
     fig1.savefig(plot_path)
+
+
+def hyperparam_plot(train_losses, valid_losses, param_name, param_values):
+    
+    fig1, ax1 = plt.subplots(nrows=1, ncols=1)
+    fig1.set_size_inches(6, 4)
+
+    for i in range(len(param_values)):
+        ax1.plot(train_losses, label="training loss")
+        ax1.plot(valid_losses, label="validation loss")
+        ax1.legend()
+
+    ax1.set_xlabel("Epochs")
+    ax1.set_ylabel("Loss")
+    ax1.set
