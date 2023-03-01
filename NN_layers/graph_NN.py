@@ -33,7 +33,7 @@ class GCN(torch.nn.Module):
         return x
 
 
-class GatedSwitchesGNN(torch.nn.Module):
+class GatedSwitchesLayer(torch.nn.Module):
     """Configurable GNN Layer
 
     TODO modify description
@@ -65,7 +65,7 @@ class GatedSwitchesGNN(torch.nn.Module):
             track_norm: Whether batch statistics are used to compute normalization mean/std (True/False)
             gated: Whether to use edge gating (True/False)
         """
-        super(GatedSwitchesGNN, self).__init__()
+        super(GatedSwitchesLayer, self).__init__()
         self.hidden_dim = hidden_dim
         self.aggregation = aggregation
         self.norm = norm
@@ -178,3 +178,35 @@ class GatedSwitchesGNN(torch.nn.Module):
 
         else:
             return torch.sum(Vh, dim=2)
+
+
+class GatedSwitchesEncoder(nn.Module):
+    """Configurable GNN Encoder
+    """
+    
+    def __init__(self, n_layers, hidden_dim, aggregation="sum", norm="layer", 
+                 learn_norm=True, track_norm=False, gated=True, *args, **kwargs):
+        super(GatedSwitchesEncoder, self).__init__()
+
+        self.init_embed_edges = nn.Embedding(2, hidden_dim)
+
+        self.layers = nn.ModuleList([
+            GatedSwitchesLayer(hidden_dim, aggregation, norm, learn_norm, track_norm, gated)
+                for _ in range(n_layers)
+        ])
+
+    def forward(self, x, A, S):
+        """
+        Args:
+            x: Input node features (B x V x H)
+            graph: Graph adjacency matrices (B x V x V)
+        Returns: 
+            Updated node features (B x V x H)
+        """
+        # Embed switch features
+        e = self.init_embed_edges(S.type(torch.long))
+
+        for layer in self.layers:
+            x, e = layer(x, e, A, S)
+
+        return x
