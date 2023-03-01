@@ -29,7 +29,7 @@ def main(args):
 
     utils = Utils(data)
 
-    graph_dataset = GraphDataSet(root="datasets/node4")
+    graph_dataset = GraphDataSet(root="datasets/" + args['network'])
     train_graphs = graph_dataset[0:3200]
     valid_graphs = graph_dataset[3200:3600]
     test_graphs = graph_dataset[3600:4000]
@@ -50,17 +50,17 @@ def main(args):
         dropout=dropout,
     )
 
-    # readout = getattr(readout_layer, args["readout"])(
-    #     input_features=output_features_GNN * data.M,
-    #     hidden_features=output_features_GNN * data.M,
-    #     output_classes=data.zdim,
-    #     layers=2,
-    #     dropout=dropout,
-    # )
-
-    readout = MLP(
-        [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
+    readout = getattr(readout_layer, args["readout"])(
+        input_features=output_features_GNN * data.M,
+        hidden_features=output_features_GNN * data.M,
+        output_classes=data.zdim,
+        layers=2,
+        dropout=dropout,
     )
+
+    # readout = MLP(
+    #     [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
+    # )
 
     model = MyEnsemble(GNN, readout, completion_step=args["useCompl"])
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
@@ -81,7 +81,8 @@ def main(args):
         description = "_".join((args["network"], args["GNN"], args["readout"]))
         torch.save(model.state_dict, os.path.join("trained_nn", description))
 
-    loss_cruve(train_losses, valid_losses, args)
+    # loss_cruve(train_losses, valid_losses, args)
+    return train_losses, valid_losses
 
 
 def train(model, optimizer, criterion, loader, args, utils):
@@ -299,7 +300,7 @@ if __name__ == "__main__":
         help="network identification",
     )
     parser.add_argument(
-        "--epochs", type=int, default=100, help="number of neural network epochs"
+        "--epochs", type=int, default=300, help="number of neural network epochs"
     )
     parser.add_argument(
         "--batchSize", type=int, default=200, help="training batch size"
