@@ -258,9 +258,17 @@ class DecodeEncode(nn.Module):
         self.completion_step = completion_step
 
     def forward(self, data, utils):
-        x, s = self.GNN(data.x_mod, data.A, data.S)  # BxNxF, BxNxNxF
+        x, s = self.GNN(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
 
-        switches_nodes = torch.nonzero(data.S)
+        S = data.S
+
+        # dim = num_switches*batch_size x 3
+        switches_nodes = torch.nonzero(
+            data.S.triu()
+        )  # triu returns the upper diagonal matrix and the rest is set to zero
+        
+        x_1 = x[switches_nodes[:,0], switches_nodes[:,1], :] 
+        x_2 = x[switches_nodes[:,0], switches_nodes[:,1], :]
 
         print(switches_nodes)
 
