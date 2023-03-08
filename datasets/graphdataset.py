@@ -58,6 +58,14 @@ class GraphDataSet(InMemoryDataset):
         torch.save((data, slices), self.processed_paths[0])
 
 
+class MyGraph(Graph):
+    "define Graphs with batches in a new dimension as in PyTorch"
+    def __cat_dim__(self, key, value, *args, **kwargs):
+        if key in ['x_mod', 'A', 'S', 'y']:
+            return None
+        else:
+            return super().__cat_dim__(key, value, *args, **kwargs)
+
 class GraphDataSetWithSwitches(InMemoryDataset):
     def __init__(self, root="datasets/node4"):
         super(GraphDataSetWithSwitches, self).__init__(root)
@@ -124,15 +132,16 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
         for i in range(y.shape[0]):
             features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
-            graph = Graph(
-                x=features,
-                edge_index=edges_without_switches,
-                switch_index=switches,
-                A=A,
-                S=S,
-                idx=i,
-                y=y[i, :],
-            )
+            # graph = MyGraph(
+            #     x=features,
+            #     edge_index=edges_without_switches,
+            #     switch_index=switches,
+            #     A=A,
+            #     S=S,
+            #     idx=i,
+            #     y=y[i, :],
+            # )
+            graph = MyGraph(x_mod=features, A=A, S=S, idx=i, y=y[i, :])
             data_list.append(graph)
 
         data, slices = self.collate(data_list)
