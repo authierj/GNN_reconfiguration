@@ -60,11 +60,13 @@ class GraphDataSet(InMemoryDataset):
 
 class MyGraph(Graph):
     "define Graphs with batches in a new dimension as in PyTorch"
+
     def __cat_dim__(self, key, value, *args, **kwargs):
-        if key in ['x_mod', 'A', 'S', 'y']:
+        if key in ["x_mod", "A", "S", "y"]:
             return None
         else:
             return super().__cat_dim__(key, value, *args, **kwargs)
+
 
 class GraphDataSetWithSwitches(InMemoryDataset):
     def __init__(self, root="datasets/node4"):
@@ -91,17 +93,18 @@ class GraphDataSetWithSwitches(InMemoryDataset):
         # Process information about edges and switches
         edges = network["bi_edge_index"] - 1
         num_edges = int(edges.shape[1] / 2)
+        # indicates which edges are switches
         switch_indexes = np.squeeze((network["swInds"] - 1))
         switch_indexes_bi = np.concatenate((switch_indexes, switch_indexes + num_edges))
         switches = edges[:, switch_indexes_bi]
-        edges_without_switches = np.delete(edges, switch_indexes_bi)
+        edges_without_switches = np.delete(edges, switch_indexes_bi, axis=1)
 
         # Adjacency and Switch-Adjacency matrices
         N = np.squeeze(network["N"])
         A = np.zeros((N, N))
         S = np.zeros((N, N))
-        A[edges_without_switches] = 1
-        S[switches] = 1
+        A[edges_without_switches[0,:],edges_without_switches[1,:]] = 1
+        S[switches[0,:], switches[1,:]] = 1
 
         # Convert to torch
         switches = from_np(switches).long()
