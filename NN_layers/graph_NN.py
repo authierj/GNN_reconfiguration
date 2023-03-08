@@ -4,19 +4,17 @@ import torch.nn.functional as F
 from torch import nn
 
 
-class GCN(torch.nn.Module):
-    def __init__(
-        self, input_features, hidden_channels, output_classes, dropout, layers
-    ):
+class GCN(nn.Module):
+    def __init__(self, args):
         super().__init__()
         torch.manual_seed(12)
-        self.first_conv = GCNConv(input_features, hidden_channels)
-        self.conv = GCNConv(hidden_channels, hidden_channels)
-        self.last_conv = GCNConv(hidden_channels, output_classes)
-        self.dropout = dropout
+        self.first_conv = GCNConv(args["inputFeatures"], args["hiddenFeatures"])
+        self.conv = GCNConv(args["hiddenFeatures"], args["hiddenFeatures"])
+        self.last_conv = GCNConv(args["hiddenFeatures"], args["outputFeatures"])
+        self.dropout = args["dropout"]
+        self.layers = args["numLayers"]
 
-        assert layers >= 2, "the minimum number of layers for the GCN is 2"
-        self.layers = layers
+        assert self.layers >= 2, "the minimum number of layers for the GCN is 2"
 
     def forward(self, x, edge_index):
 
@@ -33,12 +31,12 @@ class GCN(torch.nn.Module):
         return x
 
 
-class GatedSwitchesLayer(torch.nn.Module):
+class GatedSwitchesLayer(nn.Module):
     """Configurable GNN Layer
 
     TODO modify description
-    Implements the Gated Graph ConvNet layer:
-        h_i = ReLU ( U*h_i + Aggr.( sigma_ij, V*h_j) ),
+    Implements the Gated Switches Graph ConvNet layer:
+        h_i = ReLU ( U*h_i + Aggr_switches.( sigma_ij, V*h_j) + Aggr_edges.(V*h_j)),
         sigma_ij = sigmoid( A*h_i + B*h_j + C*e_ij ),
         e_ij = ReLU ( A*h_i + B*h_j + C*e_ij ),
         where Aggr. is an aggregation function: sum/mean/max.
@@ -118,12 +116,15 @@ class GatedSwitchesLayer(torch.nn.Module):
         Bh = self.B(h)  # B x V x H
         Ce = self.C(e)  # B x V x V x H
 
-        # Update edge features and compute edge gates
-        e = Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce  # B x V x V x H
+        test = Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce
+        print(S[0,:,:])
+                
+        # Update switch features and compute switch gates (S acts as a mask)
+        e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H
         gates = torch.sigmoid(e)  # B x V x V x H
 
         # Update node features
-        h = Uh + self.aggregate(Vh, S, gates) + self.aggregate(Vh, A, gates=1)  # B x V x H
+        h = Uh + self.aggregate(Vh, A, S, gates)  # B x V x H
 
         # Normalize node features
         h = (
@@ -153,60 +154,106 @@ class GatedSwitchesLayer(torch.nn.Module):
 
         return h, e
 
-    def aggregate(self, Vh, graph, gates):
+
+class FirstGatedSwitchesLayer(GatedSwitchesLayer):
+    """Configurable GNN First Layer
+
+    TODO modify description
+    Implements the Gated Switches Graph ConvNet layer:
+        h_i = ReLU ( U*h_i + Aggr_switches.( sigma_ij, V*h_j) + Aggr_edges.(V*h_j)),
+        sigma_ij = sigmoid( A*h_i + B*h_j + C*e_ij ),
+        e_ij = ReLU ( A*h_i + B*h_j + C*e_ij ),
+        where Aggr. is an aggregation function: sum/mean/max.
+
+    References:
+        - Joshi, C. K. (2019). Graph convolutional neural networks for the travelling salesman problem.
+    """
+
+    def __init__(
+        self,
+        input_dim,
+        hidden_dim,
+        aggregation="sum",
+        norm="batch",
+        learn_norm=True,
+        track_norm=False,
+        gated=True,
+    ):
         """
         Args:
-            Vh: Neighborhood features (B x V x V x H)
-            graph: Graph adjacency or switch-adjacency matrices (B x V x V)
-            gates: Edge gates (B x V x V x H)
-        Returns:
-            Aggregated neighborhood features (B x V x H)
+            hidden_dim: Hidden dimension size (int)
+            aggregation: Neighborhood aggregation scheme ("sum"/"mean"/"max")
+            norm: Feature normalization scheme ("layer"/"batch"/None)
+            learn_norm: Whether the normalizer has learnable affine parameters (True/False)
+            track_norm: Whether batch statistics are used to compute normalization mean/std (True/False)
+            gated: Whether to use edge gating (True/False)
         """
-        # Perform feature-wise gating mechanism
-        Vh = gates * Vh  # B x V x V x H
+        super(FirstGatedSwitchesLayer, self).__init__(
+            hidden_dim,
+            aggregation,
+            norm,
+            learn_norm,
+            track_norm,
+            gated,
+        )
 
-        # Enforce graph structure through masking
-        Vh[graph.unsqueeze(-1).expand_as(Vh)] = 0
-
-        if self.aggregation == "mean":
-            return torch.sum(Vh, dim=2) / torch.sum(1 - graph, dim=2).unsqueeze(
-                -1
-            ).type_as(Vh)
-
-        elif self.aggregation == "max":
-            return torch.max(Vh, dim=2)[0]
-
-        else:
-            return torch.sum(Vh, dim=2)
+        self.U = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.V = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.A = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.B = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.C = nn.Linear(input_dim, hidden_dim, bias=True)
 
 
 class GatedSwitchesEncoder(nn.Module):
-    """Configurable GNN Encoder
-    """
-    
-    def __init__(self, n_layers, hidden_dim, aggregation="sum", norm="layer", 
-                 learn_norm=True, track_norm=False, gated=True, *args, **kwargs):
+    """Configurable GNN Encoder"""
+
+    def __init__(self, args, learn_norm=True, track_norm=False, **kwargs):
         super(GatedSwitchesEncoder, self).__init__()
 
-        self.init_embed_edges = nn.Embedding(2, hidden_dim)
+        self.init_embed_edges = nn.Embedding(2, args["inputFeatures"])
 
-        self.layers = nn.ModuleList([
-            GatedSwitchesLayer(hidden_dim, aggregation, norm, learn_norm, track_norm, gated)
-                for _ in range(n_layers)
-        ])
+        layers = [
+            GatedSwitchesLayer(
+                args["hiddenFeatures"],
+                args["aggregation"],
+                args["norm"],
+                learn_norm,
+                track_norm,
+                args["gated"],
+            )
+            for _ in range(args["numLayers"] - 1)
+        ]
+        layers.insert(
+            0,
+            FirstGatedSwitchesLayer(
+                args["inputFeatures"],
+                args["hiddenFeatures"],
+                args["aggregation"],
+                args["norm"],
+                learn_norm,
+                track_norm,
+                args["gated"],
+            ),
+        )
+
+        self.layers = nn.ModuleList(layers)
 
     def forward(self, x, A, S):
         """
         Args:
             x: Input node features (B x V x H)
-            graph: Graph adjacency matrices (B x V x V)
-        Returns: 
+            A: Graph adjacency matrices (B x V x V)
+            S: Switch adjacency matrices (B x V x V)
+        Returns:
             Updated node features (B x V x H)
+            Updated switch features (B x V x V x H)
         """
         # Embed switch features
-        e = self.init_embed_edges(S.type(torch.long))
+        s = self.init_embed_edges(S.type(torch.long))
+
+        print(self.layers)
 
         for layer in self.layers:
-            x, e = layer(x, e, A, S)
+            x, s = layer(x, s, A, S)
 
-        return x
+        return x, s

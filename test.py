@@ -15,6 +15,7 @@ from utils_JA import xgraph_xflatten
 import NN_layers.readout as readout_layer
 from datasets.graphdataset import *
 from plots import *
+from NN_layers.graph_NN import GatedSwitchesEncoder
 
 
 def main(args):
@@ -30,7 +31,6 @@ def main(args):
     utils = Utils(data)
 
     graph_dataset = GraphDataSetWithSwitches(root="datasets/" + args["network"])
-    # graph_dataset = GraphDataSet(root="datasets/" + args["network"])
 
     # TODO change to arguments so that we can use different networks directly
     train_graphs = graph_dataset[0:3200]
@@ -42,18 +42,13 @@ def main(args):
     valid_loader = DataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
+    GNN = GatedSwitchesEncoder(args)
 
-    GNN = getattr(graph_extraction, args["GNN"])(args)
-    
     readout = getattr(readout_layer, args["readout"])(
         args, n_nodes=data.N, output_dim=data.zdim
     )
 
-    # readout = MLP(
-    #     [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
-    # )
-
-    model = MyEnsemble(GNN, readout, completion_step=args["useCompl"])
+    model = DecodeEncode(GNN, readout, completion_step=args["useCompl"])
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc
 
@@ -81,7 +76,7 @@ def train(model, optimizer, criterion, loader, args, utils):
 
     epoch_loss = 0
     for data in loader:
-        z_hat, zc_hat, x_input = model(data.x, data.edge_index, utils=utils)
+        z_hat, zc_hat, x_input = model(data, utils)
 
         Znew_train, ZCnew_train = grad_steps(
             x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
@@ -255,45 +250,19 @@ def total_loss(x, z, zc, criterion, utils, args, idx, train):
     return obj_cost + soft_weight * ineq_cost, soft_weight
 
 
-class PyGDecodeEncode(nn.Module):
+class DecodeEncode(nn.Module):
     def __init__(self, GNN, readout, completion_step):
         super().__init__()
         self.GNN = GNN
         self.readout = readout
         self.completion_step = completion_step
 
-    def forward(self, x, graph, utils):
-        # input of Rabab's NN
-        x_input = xgraph_xflatten(x, 200, first_node=False)
+    def forward(self, data, utils):
+        x, s = self.GNN(data.x_mod, data.A, data.S)  # BxNxF, BxNxNxF
 
-        xg = self.GNN(x, graph)
-        x_nn = xgraph_xflatten(xg, 200, first_node=True)
+        switches_nodes = torch.nonzero(data.S)
 
-        out = self.readout(x_nn)
-        z = utils.output_layer(out)
-
-        if self.completion_step:
-            z, zc = utils.complete(x_input, z)
-            zc_tensor = torch.stack(list(zc), dim=0)
-            return z, zc_tensor, x_input
-
-        else:
-            return utils.process_output(x_input, out), x_input
-
-
-class DecodeEncode(nn.Module):
-    def __init__(self, GNN, readout, completion_step):
-        self.GNN = GNN
-        self.readout = readout
-        self.completion_step = completion_step
-    
-    def forward(self, data):
-        x, s = self.GNN(data.x_mod, data.A, data.S)
-
-        switches_nodes = torch.is_nonzero(data.S)
-        
-
-
+        print(switches_nodes)
 
 
 if __name__ == "__main__":
@@ -330,7 +299,7 @@ if __name__ == "__main__":
         help="model for readout layer",
     )
     parser.add_argument(
-        "--numLayers", type=int, default=2, help="the number of layers in the GNN"
+        "--numLayers", type=int, default=4, help="the number of layers in the GNN"
     )
     parser.add_argument(
         "--inputFeatures",
