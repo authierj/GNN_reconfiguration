@@ -341,6 +341,31 @@ class Utils:
 
         return z_physical
 
+    def physic_informed_rounding(self, s, n_switches):
+        """
+         Args:
+            s: Input switch  probabilities
+            n_switches: The number of switches in each batch ()
+        Returns:
+            The topology of the graph
+        """
+
+        L_min = (self.N - 1) - (self.M - n_switches)
+
+        switch_list = torch.split(s, n_switches)
+        i = 0
+        for switches in switch_list:
+            i = i + 1
+            # find indices of the largest L_min[i] values
+            closed_indices = torch.topk(switches, k=L_min[i]).indices
+
+            topology = torch.zeros_like(switches)
+            topology[closed_indices] = 1
+
+            switches.copy_(topology)
+
+        return torch.cat(switch_list)
+
     def mixedIntOutput(self, z, tau):
         bin_vars_zji = z[:, 0 : self.M]
         bin_vars_y = z[:, self.M : (self.M + self.numSwitches - 1)]
