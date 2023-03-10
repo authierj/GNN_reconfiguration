@@ -345,26 +345,36 @@ class Utils:
         """
          Args:
             s: Input switch  probabilities
-            n_switches: The number of switches in each batch ()
+            n_switches: The number of switches in each batch
         Returns:
             The topology of the graph
         """
-
-        L_min = (self.N - 1) - (self.M - n_switches)
-
-        switch_list = torch.split(s, n_switches)
+        switch_indices = torch.cumsum(n_switches, dim=0)
+        topology = torch.zeros_like(s).bool()
+        L_min = (self.N - 1) - (self.M - n_switches).int()
+        
+        s_idx_before = 0
         i = 0
-        for switches in switch_list:
+        for s_idx in switch_indices:
+            closed_indices = torch.topk(s[s_idx_before:s_idx], k=L_min[i]).indices
+            topology[s_idx_before:s_idx][closed_indices] = True
             i = i + 1
-            # find indices of the largest L_min[i] values
-            closed_indices = torch.topk(switches, k=L_min[i]).indices
+            s_idx_before = s_idx
+        return topology
+        # switch_list = torch.split(s, n_switches.tolist())
+        # total_topology = torch.zeros()
+        # i = 0
+        # for switches in switch_list:
+        #     i = i + 1
+        #     # find indices of the largest L_min[i] values
+        #     closed_indices = torch.topk(switches, k=L_min[i]).indices
 
-            topology = torch.zeros_like(switches)
-            topology[closed_indices] = 1
+        #     topology = torch.zeros_like(switches)
+        #     topology[closed_indices] = 1
 
-            switches.copy_(topology)
+        #     switches.copy_(topology)
 
-        return torch.cat(switch_list)
+        # return torch.cat(switch_list)
 
     def mixedIntOutput(self, z, tau):
         bin_vars_zji = z[:, 0 : self.M]

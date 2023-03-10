@@ -12,7 +12,7 @@ from torch_geometric.nn.models import MLP
 import NN_layers.graph_NN as graph_extraction
 from utils_JA import Utils
 from utils_JA import xgraph_xflatten
-import NN_layers.readout as readout_layer
+from NN_layers import readout
 from datasets.graphdataset import *
 from plots import *
 from NN_layers.graph_NN import GatedSwitchesEncoder
@@ -43,12 +43,10 @@ def main(args):
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     GNN = GatedSwitchesEncoder(args)
+    SMLP = readout.SMLP(4*args["hiddenFeatures"], 2*args["hiddenFeatures"], args["dropout"])
+    CMLP = readout.CMLP(3*args["hiddenFeatures"], 2*args["hiddenFeatures"], args["dropout"])
 
-    readout = getattr(readout_layer, args["readout"])(
-        args, n_nodes=data.N, output_dim=data.zdim
-    )
-
-    model = DecodeEncode(GNN, readout, completion_step=args["useCompl"])
+    model = DecodeEncode(GNN, SMLP, CMLP, completion_step=args["useCompl"])
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc
 
@@ -251,24 +249,55 @@ def total_loss(x, z, zc, criterion, utils, args, idx, train):
 
 
 class DecodeEncode(nn.Module):
-    def __init__(self, GNN, readout, completion_step):
+    def __init__(self, GNN, SMLP, CMLP, completion_step):
         super().__init__()
         self.GNN = GNN
-        self.readout = readout
+        self.SMLP = SMLP
+        self.CMLP = CMLP
         self.completion_step = completion_step
 
     def forward(self, data, utils):
+
+        # encode
         x, s = self.GNN(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
+        # decode
+
+        switches_nodes = torch.nonzero(data.S.triu())
+        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
+
+        switches = s[
+            switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
+        ]
+        x_1 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
+        x_2 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
+
+        x_g = torch.sum(x, dim=1)  # B x F
+        x_g_extended = x_g[switches_nodes[:, 0], :]  # dim = num_switches*batch_size x F
+
+        SMLP_input = torch.cat((switches, x_1, x_2, x_g_extended), dim=1)
+        SMLP_out = self.SMLP(SMLP_input).squeeze()  # num_switches*batch_size
+
+        topology = utils.physic_informed_rounding(SMLP_out, n_switches)
 
         S = data.S
+        S[switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2]] = topology
+        S[switches_nodes[:, 0], switches_nodes[:, 2], switches_nodes[:, 1]] = topology
 
-        # dim = num_switches*batch_size x 3
-        switches_nodes = torch.nonzero(
-            data.S.triu()
-        )  # triu returns the upper diagonal matrix and the rest is set to zero
+        nodes = torch.nonzero((data.A + S).triu())  # dim = num_nodes*batch_size x 3
+        x_begin = x[nodes[:, 0], nodes[:, 1], :]
+        x_end = x[nodes[:, 0], nodes[:, 2], :]
+        x_g_extended = x_g[nodes[:, 0], :]
+
+        CMLP_input = torch.cat((x_begin, x_end, x_g_extended), dim=1)  
+        # voltages and flows
+        CMLP_out = self.CMLP(CMLP_input) # (N-1)*B x 3
+
         
-        x_1 = x[switches_nodes[:,0], switches_nodes[:,1], :] 
-        x_2 = x[switches_nodes[:,0], switches_nodes[:,1], :]
+
+
+
+
+        
 
         print(switches_nodes)
 
@@ -293,20 +322,6 @@ if __name__ == "__main__":
         "--lr", type=float, default=1e-4, help="neural network learning rate"
     )
     parser.add_argument(
-        "--GNN",
-        type=str,
-        default="GCN",
-        choices=["GCN", "GatedSwitchesEncoder"],
-        help="model for feature extraction layers",
-    )
-    parser.add_argument(
-        "--readout",
-        type=str,
-        default="GlobalMLP",
-        choices=["GlobalMLP", "LocalMLPs"],
-        help="model for readout layer",
-    )
-    parser.add_argument(
         "--numLayers", type=int, default=4, help="the number of layers in the GNN"
     )
     parser.add_argument(
@@ -320,12 +335,6 @@ if __name__ == "__main__":
         type=int,
         default=4,
         help="number of features in the hidden layers of the GNN",
-    )
-    parser.add_argument(
-        "--outputFeatures",
-        type=int,
-        default=4,
-        help="number of features in the last layer of the GNN",
     )
     parser.add_argument(
         "--softWeight",

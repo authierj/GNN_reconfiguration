@@ -17,42 +17,42 @@ class GlobalMLP(torch.nn.Module):
         x = self.lin_input(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin_last(x)
+        x = self.lin_output(x)
         return x
 
 
 class SMLP(torch.nn.Module):
     def __init__(
-        self, input_features, hidden_features, output_classes, layers, dropout
+        self, input_features, hidden_features, dropout
     ):
-        super(SMLP).__init__()
+        super(SMLP, self).__init__()
         torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
-        self.lin_last = Linear(hidden_features, 1)
+        self.lin_output = Linear(hidden_features, 1)
         self.dropout = dropout
 
-    def forward(self, x, e, S):
+    def forward(self, x):
         x = self.lin_input(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin_last(x)
+        x = self.lin_output(x)
         x = x.sigmoid()
         return x
 
 
 class CMLP(torch.nn.Module):
     def __init__(
-        self, input_features, hidden_features, output_classes, layers, dropout
+        self, input_features, hidden_features, dropout
     ):
-        super(CMLP).__init__()
+        super(CMLP, self).__init__()
         torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
-        self.lin_last = Linear(hidden_features, 1)
+        self.lin_last = Linear(hidden_features, 3)
         self.dropout = dropout
 
-    def forward(self, x, e, A):
+    def forward(self, x):
         x = self.lin_input(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin_last(x)
+        x = self.lin_output(x)
         return x
