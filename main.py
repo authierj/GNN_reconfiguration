@@ -29,7 +29,7 @@ def main(args):
 
     utils = Utils(data)
 
-    graph_dataset = GraphDataSetWithSwitches(root="datasets/" + args["network"])
+    graph_dataset = GraphDataSet(root="datasets/" + args["network"])
     # graph_dataset = GraphDataSet(root="datasets/" + args["network"])
 
     # TODO change to arguments so that we can use different networks directly
@@ -53,7 +53,7 @@ def main(args):
     #     [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
     # )
 
-    model = MyEnsemble(GNN, readout, completion_step=args["useCompl"])
+    model = PyGDecodeEncode(GNN, readout, completion_step=args["useCompl"])
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc
 
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--network",
         type=str,
-        default="node4",
+        default="baranwu33",
         choices=["node4", "IEEE13", "baranwu33"],
         help="network identification",
     )
