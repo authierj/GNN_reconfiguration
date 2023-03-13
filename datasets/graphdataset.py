@@ -14,7 +14,7 @@ class GraphDataSet(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return "casedata_graph"
+        return "casedata_33_uniform_extrasw"
 
     @property
     def processed_file_names(self):
@@ -26,7 +26,7 @@ class GraphDataSet(InMemoryDataset):
         data = spio.loadmat(path)
 
         cases = data["case_data_all"][0][0]
-        network = data["network_4_data"][0, 0]
+        network = data["network_33_data"][0, 0]
         solutions = data["res_data_all"][0][0]
 
         edges = from_np(network["bi_edge_index"] - 1).long()

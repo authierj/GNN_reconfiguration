@@ -20,8 +20,8 @@ class OPTreconfigure:
         qgLow = cases[4]
         qgUpp = cases[5]
 
-        # network = data['network_33_data'][0, 0]
-        network = data["network_4_data"][0, 0]
+        network = data['network_33_data'][0, 0]
+        # network = data["network_4_data"][0, 0]
 
         SBase = np.squeeze(network[0])
         VBase = np.squeeze(network[1])
