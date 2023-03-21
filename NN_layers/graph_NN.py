@@ -117,7 +117,7 @@ class GatedSwitchesLayer(nn.Module):
         Ce = self.C(e)  # B x V x V x H
 
         test = Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce
-        print(S[0, :, :])
+        # print(S[0, :, :])
 
         # Update switch features and compute switch gates (S acts as a mask)
         e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H
@@ -167,8 +167,9 @@ class GatedSwitchesLayer(nn.Module):
         Vh_switches = gates * Vh  # B x V x V x H
 
         # Enforce graph structure through masking
-        Vh[A.unsqueeze(-1).expand_as(Vh)] = 0
-        Vh = Vh + Vh_switches
+        Vh_masked = Vh * A.unsqueeze(3)
+        # Vh[A.unsqueeze(-1).expand_as(Vh.clone())] = 0
+        Vh = Vh_masked + Vh_switches
 
         if self.aggregation == "mean":
             return torch.sum(Vh, dim=2) / torch.sum(1 - (A + S), dim=2).unsqueeze(
@@ -232,7 +233,7 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         Ce = self.C(e)  # B x V x V x H
 
         test = Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce
-        print(S[0, :, :])
+        # print(S[0, :, :])
 
         # Update switch features and compute switch gates (S acts as a mask)
         e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H
@@ -266,56 +267,4 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         return h, e
 
 
-class GatedSwitchesEncoder(nn.Module):
-    """Configurable GNN Encoder"""
 
-    def __init__(self, args, learn_norm=True, track_norm=False, **kwargs):
-        super(GatedSwitchesEncoder, self).__init__()
-
-        self.init_embed_edges = nn.Embedding(2, args["inputFeatures"])
-
-        layers = [
-            GatedSwitchesLayer(
-                args["hiddenFeatures"],
-                args["aggregation"],
-                args["norm"],
-                learn_norm,
-                track_norm,
-                args["gated"],
-            )
-            for _ in range(args["numLayers"] - 1)
-        ]
-        layers.insert(
-            0,
-            FirstGatedSwitchesLayer(
-                args["inputFeatures"],
-                args["hiddenFeatures"],
-                args["aggregation"],
-                args["norm"],
-                learn_norm,
-                track_norm,
-                args["gated"],
-            ),
-        )
-
-        self.layers = nn.ModuleList(layers)
-
-    def forward(self, x, A, S):
-        """
-        Args:
-            x: Input node features (B x V x H)
-            A: Graph adjacency matrices (B x V x V)
-            S: Switch adjacency matrices (B x V x V)
-        Returns:
-            Updated node features (B x V x H)
-            Updated switch features (B x V x V x H)
-        """
-        # Embed switch features
-        s = self.init_embed_edges(S.type(torch.long))
-
-        print(self.layers)
-
-        for layer in self.layers:
-            x, s = layer(x, s, A, S)
-
-        return x, s

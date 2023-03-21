@@ -1,27 +1,23 @@
 # Extern
 import torch
 import numpy as np
-import torch.nn as nn
-import matplotlib.pyplot as plt
 import pickle
 import argparse
 from torch_geometric.loader import DataLoader
-from torch_geometric.nn.models import MLP
 
 # Local
-import NN_layers.graph_NN as graph_extraction
 from utils_JA import Utils
-from utils_JA import xgraph_xflatten
+from utils_JA import total_loss
 from NN_layers import readout
 from datasets.graphdataset import *
 from plots import *
-from NN_layers.graph_NN import GatedSwitchesEncoder
+from NN_models.gated_switch import GatedSwitchGNN
 
 
 def main(args):
+
     dataset_name = args["network"] + "_" + "dataset_test"
     filepath = "datasets/" + args["network"] + "/processed/" + dataset_name
-
     try:
         with open(filepath, "rb") as f:
             data = pickle.load(f)
@@ -29,7 +25,6 @@ def main(args):
         print("Network file does not exist")
 
     utils = Utils(data)
-
     graph_dataset = GraphDataSetWithSwitches(root="datasets/" + args["network"])
 
     # TODO change to arguments so that we can use different networks directly
@@ -42,18 +37,20 @@ def main(args):
     valid_loader = DataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
-    GNN = GatedSwitchesEncoder(args)
-    SMLP = readout.SMLP(4*args["hiddenFeatures"], 2*args["hiddenFeatures"], args["dropout"])
-    CMLP = readout.CMLP(3*args["hiddenFeatures"], 2*args["hiddenFeatures"], args["dropout"])
-
-    model = DecodeEncode(GNN, SMLP, CMLP, completion_step=args["useCompl"])
+    # Model initialization and optimizer
+    model = GatedSwitchGNN(args)
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
-    cost_fnc = utils.obj_fnc
+    cost_fnc = utils.obj_fnc_JA
 
     num_epochs = args["epochs"]
     train_losses = np.zeros(num_epochs)
     valid_losses = np.zeros(num_epochs)
+
+    # train and test
     for i in range(num_epochs):
+        if i == 100:
+            print(i)
+
         train_losses[i] = train(model, optimizer, cost_fnc, train_loader, args, utils)
         valid_losses[i] = test_or_validate(model, cost_fnc, valid_loader, args, utils)
 
@@ -65,7 +62,6 @@ def main(args):
         description = "_".join((args["network"], args["GNN"], args["readout"]))
         torch.save(model.state_dict, os.path.join("trained_nn", description))
 
-    # loss_cruve(train_losses, valid_losses, args)
     return train_losses, valid_losses
 
 
@@ -76,17 +72,18 @@ def train(model, optimizer, criterion, loader, args, utils):
     for data in loader:
         z_hat, zc_hat, x_input = model(data, utils)
 
-        Znew_train, ZCnew_train = grad_steps(
-            x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
-        )
+        # Znew_train, ZCnew_train = grad_steps(
+        #     x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
+        # )
         train_loss, soft_weight = total_loss(
             x_input,
-            Znew_train,
-            ZCnew_train,
+            z_hat,
+            zc_hat,
             criterion,
             utils,
             args,
             data.idx,
+            data.Incidence,
             train=True,
         )
 
@@ -105,19 +102,20 @@ def test_or_validate(model, criterion, loader, args, utils):
     for data in loader:
 
         with torch.no_grad():
-            z_hat, zc_hat, x_input = model(data.x, data.edge_index, utils=utils)
+            z_hat, zc_hat, x_input = model(data, utils)
 
-        Znew_train, ZCnew_train = grad_steps(
-            x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
-        )
+        # Znew_train, ZCnew_train = grad_steps(
+        #     x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
+        # )
         test_loss, soft_weight = total_loss(
             x_input,
-            Znew_train,
-            ZCnew_train,
+            z_hat,
+            zc_hat,
             criterion,
             utils,
             args,
             data.idx,
+            data.Incidence,
             train=False,
         )
         test_loss_total += test_loss.detach().mean()
@@ -125,181 +123,6 @@ def test_or_validate(model, criterion, loader, args, utils):
     return test_loss_total / len(loader)
 
 
-def grad_steps(x, z, zc, args, utils, idx, plotFlag):
-    """
-    absolutely no clue about what happens here
-    """
-
-    take_grad_steps = args["useTrainCorr"]
-    # plotFlag = True
-    if take_grad_steps:
-        lr = args["corrLr"]
-        num_steps = args["corrTrainSteps"]
-        momentum = args["corrMomentum"]
-
-        z_new = z
-        zc_new = zc
-        old_delz = 0
-        old_delphiz = 0
-
-        z_new_c = z
-        zc_new_c = zc
-        old_delz_c = 0
-        old_delphiz_c = 0
-
-        if plotFlag:
-            num_steps = 200  # 10000
-            ineq_costs = np.array(())
-            ineq_costs_c = np.array(())
-
-        iters = 0
-        for i in range(num_steps):
-
-            delz, delphiz = utils.corr_steps(x, z_new, zc_new, idx)
-            new_delz = lr * delz + momentum * old_delz
-            new_delphiz = lr * delphiz + momentum * old_delphiz
-            z_new = z_new - new_delz
-            # FEB 14: something in correction not working. use this until debugged
-            _, zc_new_compl = utils.complete(x, z_new)
-            zc_new = torch.stack(list(zc_new_compl), dim=0)
-            old_delz = new_delz
-            old_delphiz = new_delphiz
-
-            delz_c, delphiz_c = utils.corr_steps(x, z_new_c, zc_new_c, idx)
-            new_delz_c = lr * delz_c + momentum * old_delz_c
-            new_delphiz_c = lr * delphiz_c + momentum * old_delphiz_c
-            z_new_c = z_new_c - new_delz_c
-            _, zc_new_compl = utils.complete(x, z_new_c)
-            zc_new_c = torch.stack(list(zc_new_compl), dim=0)
-            old_delz_c = new_delz_c
-            old_delphiz_c = new_delphiz_c
-
-            check_z = torch.max(z_new - z_new_c)
-            check_zc = torch.max(zc_new - zc_new_c)
-
-            eq_check = utils.eq_resid(x, z_new, zc_new)
-            eq_check_c = utils.eq_resid(x, z_new_c, zc_new_c)
-
-            if torch.max(eq_check) > 1e-6:
-                print("eq_update z broken".format(torch.max(eq_check)))
-            if torch.max(eq_check_c) > 1e-6:
-                print("eq_update z compl broken".format(torch.max(eq_check_c)))
-            if check_z > 1e-6:
-                print("z updates not consistent".format(check_z))
-            if check_zc > 1e-6:
-                print("zc updates not consistent".format(check_zc))
-
-            if plotFlag:
-                ineq_cost = torch.norm(
-                    utils.ineq_resid(z_new.detach(), zc_new.detach(), idx), dim=1
-                )
-                ineq_costs = np.hstack((ineq_costs, ineq_cost[0].detach().numpy()))
-                ineq_cost_c = torch.norm(
-                    utils.ineq_resid(z_new_c, zc_new_c, idx), dim=1
-                )
-                ineq_costs_c = np.hstack(
-                    (ineq_costs_c, ineq_cost_c[0].detach().numpy())
-                )
-
-            iters += 1
-
-        if plotFlag:
-            fig, ax = plt.subplots()
-            fig_c, ax_c = plt.subplots()
-            s = np.arange(1, iters + 1, 1)
-            ax.plot(s, ineq_costs)
-            ax_c.plot(s, ineq_costs_c)
-
-        return z_new, zc_new
-    else:
-        return z, zc
-
-
-def total_loss(x, z, zc, criterion, utils, args, idx, train):
-
-    obj_cost = criterion(z, zc)
-    ineq_dist = utils.ineq_resid(z, zc, idx)  # gives update for vector weight
-    ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
-
-    soft_weight = args["softWeight"]
-
-    if train and args["useAdaptiveWeight"]:
-        if args["useVectorWeight"]:
-            soft_weight_new = (
-                soft_weight + args["adaptiveWeightLr"] * ineq_dist.detach()
-            )
-            return (
-                obj_cost
-                + torch.sum(
-                    (soft_weight + args["adaptiveWeightLr"] * ineq_dist) * ineq_dist, 1
-                ),
-                soft_weight_new,
-            )
-        else:
-            soft_weight_new = (
-                soft_weight + args["adaptiveWeightLr"] * ineq_cost.detach()
-            )
-            return (
-                obj_cost
-                + ((soft_weight + args["adaptiveWeightLr"] * ineq_cost) * ineq_cost),
-                soft_weight_new,
-            )
-
-    return obj_cost + soft_weight * ineq_cost, soft_weight
-
-
-class DecodeEncode(nn.Module):
-    def __init__(self, GNN, SMLP, CMLP, completion_step):
-        super().__init__()
-        self.GNN = GNN
-        self.SMLP = SMLP
-        self.CMLP = CMLP
-        self.completion_step = completion_step
-
-    def forward(self, data, utils):
-
-        # encode
-        x, s = self.GNN(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
-        # decode
-
-        switches_nodes = torch.nonzero(data.S.triu())
-        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
-
-        switches = s[
-            switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
-        ]
-        x_1 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
-        x_2 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
-
-        x_g = torch.sum(x, dim=1)  # B x F
-        x_g_extended = x_g[switches_nodes[:, 0], :]  # dim = num_switches*batch_size x F
-
-        SMLP_input = torch.cat((switches, x_1, x_2, x_g_extended), dim=1)
-        SMLP_out = self.SMLP(SMLP_input).squeeze()  # num_switches*batch_size
-
-        topology = utils.physic_informed_rounding(SMLP_out, n_switches)
-
-        S = data.S
-        S[switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2]] = topology
-        S[switches_nodes[:, 0], switches_nodes[:, 2], switches_nodes[:, 1]] = topology
-
-        nodes = torch.nonzero((data.A + S).triu())  # dim = num_nodes*batch_size x 3
-        x_begin = x[nodes[:, 0], nodes[:, 1], :]
-        x_end = x[nodes[:, 0], nodes[:, 2], :]
-        x_g_extended = x_g[nodes[:, 0], :]
-
-        CMLP_input = torch.cat((x_begin, x_end, x_g_extended), dim=1)  
-        # voltages and flows
-        CMLP_out = self.CMLP(CMLP_input) # (N-1)*B x 3
-
-        
-
-
-
-
-        
-
-        print(switches_nodes)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ class SMLP(torch.nn.Module):
         super(SMLP, self).__init__()
         torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
-        self.lin_output = Linear(hidden_features, 1)
+        self.lin_output = Linear(hidden_features, 4)
         self.dropout = dropout
 
     def forward(self, x):
@@ -47,7 +47,7 @@ class CMLP(torch.nn.Module):
         super(CMLP, self).__init__()
         torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
-        self.lin_last = Linear(hidden_features, 3)
+        self.lin_output = Linear(hidden_features, 3)
         self.dropout = dropout
 
     def forward(self, x):
