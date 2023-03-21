@@ -62,7 +62,17 @@ class MyGraph(Graph):
     "define Graphs with batches in a new dimension as in PyTorch"
 
     def __cat_dim__(self, key, value, *args, **kwargs):
-        if key in ["x_mod", "A", "S", "y"]:
+        if key in [
+            "x_mod",
+            "A",
+            "S",
+            "Incidence",
+            "Incidence_parent",
+            "Incidence_child",
+            "switch_mask",
+            "D_inv",
+            "y",
+        ]:
             return None
         else:
             return super().__cat_dim__(key, value, *args, **kwargs)
@@ -89,30 +99,47 @@ class GraphDataSetWithSwitches(InMemoryDataset):
         cases = data["case_data_all"][0][0]
         network = data["network_4_data"][0, 0]
         solutions = data["res_data_all"][0][0]
+        incidence = from_np(network["Aflow"].todense()).int()
+        incidence_parent = from_np(network["mStart"].todense()).bool()
+        incidence_child = from_np(network["mEnd"].todense()).bool()
+        D_inv = torch.diag(1/torch.sum(torch.abs(incidence), 0))
+        Incidence = incidence
 
         # Process information about edges and switches
         edges = network["bi_edge_index"] - 1
         num_edges = int(edges.shape[1] / 2)
         # indicates which edges are switches
         switch_indexes = np.squeeze((network["swInds"] - 1))
+        switch_mask = np.zeros(num_edges)
+        switch_mask[switch_indexes] = 1
         switch_indexes_bi = np.concatenate((switch_indexes, switch_indexes + num_edges))
         switches = edges[:, switch_indexes_bi]
         edges_without_switches = np.delete(edges, switch_indexes_bi, axis=1)
-
+        # R_vector = np.squeeze(network["R"])
+        # X_vector = np.squeeze(network["X"])
         # Adjacency and Switch-Adjacency matrices
         N = np.squeeze(network["N"])
         A = np.zeros((N, N))
         S = np.zeros((N, N))
-        A[edges_without_switches[0,:],edges_without_switches[1,:]] = 1
-        S[switches[0,:], switches[1,:]] = 1
+        # R = np.zeros((N, N))
+        # X = np.zeros((N, N))
+        A[edges_without_switches[0, :], edges_without_switches[1, :]] = 1
+        S[switches[0, :], switches[1, :]] = 1
+        # R[edges[0, :], edges[1, :]] = np.hstack((R_vector, R_vector))
+        # X[edges[0, :], edges[1, :]] = np.hstack((X_vector, X_vector))
 
         # Convert to torch
         switches = from_np(switches).long()
         edges_without_switches = from_np(edges_without_switches).long()
         A = from_np(A).bool()
-        A.to_sparse
+        A.to_sparse()
         S = from_np(S).bool()
         S.to_sparse()
+        switch_mask = from_np(switch_mask).bool()
+        # R = from_np(R).float()
+        # R.to_sparse()
+        # X = from_np(X).float()
+        # X.to_sparse()
 
         pl = cases["PL"]
         ql = cases["QL"]
@@ -144,7 +171,18 @@ class GraphDataSetWithSwitches(InMemoryDataset):
             #     idx=i,
             #     y=y[i, :],
             # )
-            graph = MyGraph(x_mod=features, A=A, S=S, idx=i, y=y[i, :])
+            graph = MyGraph(
+                x_mod=features,
+                A=A,
+                S=S,
+                switch_mask=switch_mask,
+                Incidence=Incidence,
+                Incidence_parent=incidence_parent,
+                Incidence_child=incidence_child,
+                D_inv=D_inv,
+                idx=i,
+                y=y[i, :],
+            )
             data_list.append(graph)
 
         data, slices = self.collate(data_list)

@@ -70,6 +70,56 @@ class Utils:
 
         return torch.cat([z_ij, y_nol], dim=1)
 
+    def decompose_vars_z_JA(self, z):
+        """
+        decompose_vars_z_JA returns the decomposition of the neural network guess of Jules' reduced model
+
+        args:
+            z: the neural network guess
+                z = [pij, v, topolgy]
+        return:
+            pij: the active power flow through each line
+            v: the voltage at each node
+            topology: the topology of the network
+        """
+
+        pij = z[:, 0 : self.M]
+        v = z[:, self.M : self.M + self.N]
+        topology = z[:, self.M + self.N : :]
+
+        return pij, v, topology
+
+    def decompose_vars_zc_JA(self, zc):
+        """
+        decompose_vars_zc_JA returns the decomposition of the completion variables of Jules' reduced model
+        args:
+            zc: the completion variables
+                zc = [qij, pg, qg]
+        return:
+            qij: the reactive power flow through each line
+            pg: the active power generation at each node
+            qg: the reactive power generation at each node
+        """
+
+        qij = zc[:, 0 : self.M]
+        pg = zc[:, self.M : self.M + self.N]
+        qg = zc[:, self.M + self.N : :]
+
+        return qij, pg, qg
+
+    def obj_fnc_JA(self, z, zc):
+        """
+        obj_fnc approximates the power loss via line losses using Rij * (Pij^2 + Qij^2)
+
+        :return: the approximate line power losses
+        """
+
+        pij, _, _ = self.decompose_vars_z_JA(z)
+        qij, _, _ = self.decompose_vars_zc_JA(zc)
+
+        fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
+        return fncval
+
     def obj_fnc(self, z, zc):
         """
         obj_fnc approximates the power loss via line losses using
@@ -141,14 +191,52 @@ class Utils:
 
         return resids
 
+    def ineq_resid_JA(self, z, zc, idx, incidence):
+
+        pij, v, _ = self.decompose_vars_z_JA(z)
+        qij, pg, qg = self.decompose_vars_zc_JA(zc)
+
+        pg_upp_resid = pg[:, 1::] - self.pgUpp[idx, :]
+        pg_low_resid = self.pgLow[idx, :] - pg[:, 1::]
+
+        qg_upp_resid = qg[:, 1::] - self.qgUpp[idx, :]
+        qg_low_resid = self.qgLow[idx, :] - qg[:, 1::]
+
+        v_upp_resid = v - self.vUpp
+        v_low_resid = v - self.vLow
+
+        # TODO discuss with Rabab
+        connectivity = (
+            -incidence.float() @ (pij.unsqueeze(2) ** 2 + qij.unsqueeze(2) ** 2)
+        ).squeeze()
+
+        resids = torch.cat(
+            [
+                pg_upp_resid,
+                pg_low_resid,
+                qg_upp_resid,
+                qg_low_resid,
+                pg[:, 0].reshape(-1, 1),
+                qg[:, 0].reshape(-1, 1),
+                -pg[:, 0].reshape(-1, 1),
+                -qg[:, 0].reshape(-1, 1),
+                v_upp_resid,
+                v_low_resid,
+                connectivity,
+            ],
+            dim=1,
+        )
+        return torch.clamp(resids, min=0)
+
     def ineq_resid(self, z, zc, idx):  # Z = [z,zc]
+
         zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
         qij = torch.hstack((qij_nosw, qij_sw))
         y = torch.hstack((y_nol, ylast.unsqueeze(1)))
 
-        ncases = z.shape[0]
+        ncases = z.shape[0]  # = batch size
         vall = torch.hstack((torch.ones(ncases, 1), v))
 
         pg_upp_resid = pg[:, 1:None] - self.pgUpp[idx, :]
@@ -344,7 +432,7 @@ class Utils:
     def physic_informed_rounding(self, s, n_switches):
         """
          Args:
-            s: Input switch  probabilities
+            s: Input switch  probabilities prediction of the NN
             n_switches: The number of switches in each batch
         Returns:
             The topology of the graph
@@ -352,7 +440,7 @@ class Utils:
         switch_indices = torch.cumsum(n_switches, dim=0)
         topology = torch.zeros_like(s).bool()
         L_min = (self.N - 1) - (self.M - n_switches).int()
-        
+
         s_idx_before = 0
         i = 0
         for s_idx in switch_indices:
@@ -360,7 +448,12 @@ class Utils:
             topology[s_idx_before:s_idx][closed_indices] = True
             i = i + 1
             s_idx_before = s_idx
+
+        # set the power flows to zero for open switches
+        # p_corrected = topology * p
+        # q_corrected = topology * q
         return topology
+
         # switch_list = torch.split(s, n_switches.tolist())
         # total_topology = torch.zeros()
         # i = 0
@@ -433,6 +526,39 @@ class Utils:
         ql = x[:, self.N - 1 : None]
         return pl, ql
 
+    def complete_JA(self, x, v, p_flow, topo, incidence):
+        """
+        return the completion variables to satisfy the power flow equations
+
+        Args:
+            x: the input to the neural network
+            v: the voltage magnitudes
+            p_flow: the active power flows
+            topo: the topology of the graph
+            incidence: the incidence matrix of the graph
+
+        returns:
+            pg: the active power generation
+            qg: the reactive power generation
+            p_flow_corrected: the active power flows corrected for the topology
+            q_flow_corrected: the reactive power flows corrected for the topology
+        """
+
+        q_flow = (
+            0.5 * (v.unsqueeze(1) @ incidence.float()).squeeze() - self.Rall * p_flow
+        ) / self.Xall
+
+        q_flow_corrected = topo * q_flow.float()
+        p_flow_corrected = topo * p_flow
+
+        pl = x[:, :, 0]
+        ql = x[:, :, 1]
+
+        pg = pl + (incidence.float() @ p_flow_corrected.unsqueeze(2)).squeeze()
+        qg = ql + (incidence.float() @ q_flow_corrected.unsqueeze(2)).squeeze()
+
+        return pg, qg, p_flow_corrected, q_flow_corrected
+
 
 def dc3Function(data):
     class dc3FunctionFn(Function):
@@ -442,8 +568,9 @@ def dc3Function(data):
             pl, ql = data.decompose_vars_x(x)
             zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = data.decompose_vars_z(z)
             numsw = data.numSwitches
-            ncases = x.shape[0]
+            ncases = x.shape[0]  # ncases = batch size
 
+            # could skip that
             y_rem = (data.N - 1) - (data.M - numsw) - torch.sum(y_nol, 1)
             zij = torch.zeros(ncases, data.M)
             zij[:, 0 : data.M - numsw] = 1 - zji[:, 0 : data.M - numsw]
@@ -655,6 +782,131 @@ def xgraph_xflatten(x_graph, batch_size, first_node=False):
     xNN_3d = torch.transpose(graph_3d, 1, 2)
     xNN = torch.flatten(xNN_3d, 1, 2)
     return xNN
+
+
+def total_loss(x, z, zc, criterion, utils, args, idx, incidence, train):
+
+    obj_cost = criterion(z, zc)
+    ineq_dist = utils.ineq_resid_JA(
+        z, zc, idx, incidence
+    )  # gives update for vector weight
+    ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
+
+    soft_weight = args["softWeight"]
+
+    if train and args["useAdaptiveWeight"]:
+        if args["useVectorWeight"]:
+            soft_weight_new = (
+                soft_weight + args["adaptiveWeightLr"] * ineq_dist.detach()
+            )
+            return (
+                obj_cost
+                + torch.sum(
+                    (soft_weight + args["adaptiveWeightLr"] * ineq_dist) * ineq_dist, 1
+                ),
+                soft_weight_new,
+            )
+        else:
+            soft_weight_new = (
+                soft_weight + args["adaptiveWeightLr"] * ineq_cost.detach()
+            )
+            return (
+                obj_cost
+                + ((soft_weight + args["adaptiveWeightLr"] * ineq_cost) * ineq_cost),
+                soft_weight_new,
+            )
+
+    return obj_cost + soft_weight * ineq_cost, soft_weight
+
+
+def grad_steps(x, z, zc, args, utils, idx, plotFlag):
+    """
+    absolutely no clue about what happens here
+    """
+
+    take_grad_steps = args["useTrainCorr"]
+    # plotFlag = True
+    if take_grad_steps:
+        lr = args["corrLr"]
+        num_steps = args["corrTrainSteps"]
+        momentum = args["corrMomentum"]
+
+        z_new = z
+        zc_new = zc
+        old_delz = 0
+        old_delphiz = 0
+
+        z_new_c = z
+        zc_new_c = zc
+        old_delz_c = 0
+        old_delphiz_c = 0
+
+        if plotFlag:
+            num_steps = 200  # 10000
+            ineq_costs = np.array(())
+            ineq_costs_c = np.array(())
+
+        iters = 0
+        for i in range(num_steps):
+
+            delz, delphiz = utils.corr_steps(x, z_new, zc_new, idx)
+            new_delz = lr * delz + momentum * old_delz
+            new_delphiz = lr * delphiz + momentum * old_delphiz
+            z_new = z_new - new_delz
+            # FEB 14: something in correction not working. use this until debugged
+            _, zc_new_compl = utils.complete(x, z_new)
+            zc_new = torch.stack(list(zc_new_compl), dim=0)
+            old_delz = new_delz
+            old_delphiz = new_delphiz
+
+            delz_c, delphiz_c = utils.corr_steps(x, z_new_c, zc_new_c, idx)
+            new_delz_c = lr * delz_c + momentum * old_delz_c
+            new_delphiz_c = lr * delphiz_c + momentum * old_delphiz_c
+            z_new_c = z_new_c - new_delz_c
+            _, zc_new_compl = utils.complete(x, z_new_c)
+            zc_new_c = torch.stack(list(zc_new_compl), dim=0)
+            old_delz_c = new_delz_c
+            old_delphiz_c = new_delphiz_c
+
+            check_z = torch.max(z_new - z_new_c)
+            check_zc = torch.max(zc_new - zc_new_c)
+
+            eq_check = utils.eq_resid(x, z_new, zc_new)
+            eq_check_c = utils.eq_resid(x, z_new_c, zc_new_c)
+
+            if torch.max(eq_check) > 1e-6:
+                print("eq_update z broken".format(torch.max(eq_check)))
+            if torch.max(eq_check_c) > 1e-6:
+                print("eq_update z compl broken".format(torch.max(eq_check_c)))
+            if check_z > 1e-6:
+                print("z updates not consistent".format(check_z))
+            if check_zc > 1e-6:
+                print("zc updates not consistent".format(check_zc))
+
+            if plotFlag:
+                ineq_cost = torch.norm(
+                    utils.ineq_resid(z_new.detach(), zc_new.detach(), idx), dim=1
+                )
+                ineq_costs = np.hstack((ineq_costs, ineq_cost[0].detach().numpy()))
+                ineq_cost_c = torch.norm(
+                    utils.ineq_resid(z_new_c, zc_new_c, idx), dim=1
+                )
+                ineq_costs_c = np.hstack(
+                    (ineq_costs_c, ineq_cost_c[0].detach().numpy())
+                )
+
+            iters += 1
+
+        if plotFlag:
+            fig, ax = plt.subplots()
+            fig_c, ax_c = plt.subplots()
+            s = np.arange(1, iters + 1, 1)
+            ax.plot(s, ineq_costs)
+            ax_c.plot(s, ineq_costs_c)
+
+        return z_new, zc_new
+    else:
+        return z, zc
 
 
 def default_args():
