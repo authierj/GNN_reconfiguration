@@ -36,7 +36,7 @@ class SMLP(torch.nn.Module):
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
-        x = x.sigmoid()
+        # x = x.sigmoid()
         return x
 
 

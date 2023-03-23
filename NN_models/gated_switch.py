@@ -7,7 +7,7 @@ from NN_layers.readout import *
 class GatedSwitchesEncoder(nn.Module):
     """Configurable GNN Encoder"""
 
-    def __init__(self, args, learn_norm=True, track_norm=False, **kwargs):
+    def __init__(self, args, learn_norm=False, track_norm=False, **kwargs):
         super(GatedSwitchesEncoder, self).__init__()
 
         self.init_embed_edges = nn.Embedding(2, args["inputFeatures"])
@@ -67,7 +67,7 @@ class GatedSwitchGNN(nn.Module):
         4 * args["hiddenFeatures"], 4 * args["hiddenFeatures"], args["dropout"]
         )
         self.CMLP = CMLP(
-            3 * args["hiddenFeatures"], 2 * args["hiddenFeatures"], args["dropout"]
+            3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.completion_step = args["useCompl"]
 
@@ -75,7 +75,8 @@ class GatedSwitchGNN(nn.Module):
 
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
-
+        
+        test_switch = s[0,:,:,0] #problem here!
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
         n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
@@ -103,10 +104,10 @@ class GatedSwitchGNN(nn.Module):
 
         ps_flow = torch.zeros((x.shape[0], utils.M))
         ps_flow[data.switch_mask] = SMLP_out[:, 1]
-        Vs_parent = torch.zeros((x.shape[0], utils.M))
-        Vs_parent[data.switch_mask] = SMLP_out[:, 2]
-        Vs_child = torch.zeros((x.shape[0], utils.M))
-        Vs_child[data.switch_mask] = SMLP_out[:, 3]
+        vs_parent = torch.zeros((x.shape[0], utils.M))
+        vs_parent[data.switch_mask] = SMLP_out[:, 2]
+        vs_child = torch.zeros((x.shape[0], utils.M))
+        vs_child[data.switch_mask] = SMLP_out[:, 3]
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -129,17 +130,19 @@ class GatedSwitchGNN(nn.Module):
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
-        V = (
-            data.D_inv @ data.Incidence_parent.float() @ vc_parent.unsqueeze(2).float()
-            + data.D_inv @ data.Incidence_child.float() @ vc_child.unsqueeze(2).float()
+        v = (
+            data.D_inv @ data.Incidence_parent.float() @ (vc_parent + vs_parent).unsqueeze(2).float()
+            + data.D_inv @ data.Incidence_child.float() @ (vc_child + vs_child).unsqueeze(2).float()
         ).squeeze()
-        V[:, 0] = 1  # V_PCC = 1
+        v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x_mod, V, p_flow, graph_topo, data.Incidence
+            data.x_mod, v, p_flow, graph_topo, data.Incidence
         )
 
-        z = torch.cat((p_flow_corrected, V, graph_topo), dim=1)
+        z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
 
-        return z, zc, x
+        # p_test = torch.sum(data.x_mod[:,:,0], dim=1) - torch.sum(pg, dim=1)
+        # q_test = torch.sum(data.x_mod[:,:,1], dim=1) - torch.sum(qg, dim=1)
+        return z, zc

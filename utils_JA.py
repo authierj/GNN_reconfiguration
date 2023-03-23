@@ -192,8 +192,19 @@ class Utils:
         return resids
 
     def ineq_resid_JA(self, z, zc, idx, incidence):
+        """
+        ineq_resid returns the violation of the inequality constraints
 
-        pij, v, _ = self.decompose_vars_z_JA(z)
+        args:
+            z: the output of the neural network
+            zc: the completion variables
+            idx: the index of the case
+            incidence: the incidence matrix of the network
+        return:
+            violated_resids: the value of the violation of the inequality constraints
+        """
+
+        pij, v, topology = self.decompose_vars_z_JA(z)
         qij, pg, qg = self.decompose_vars_zc_JA(zc)
 
         pg_upp_resid = pg[:, 1::] - self.pgUpp[idx, :]
@@ -203,13 +214,18 @@ class Utils:
         qg_low_resid = self.qgLow[idx, :] - qg[:, 1::]
 
         v_upp_resid = v - self.vUpp
-        v_low_resid = v - self.vLow
+        v_low_resid = self.vLow - v
 
         # TODO discuss with Rabab
         connectivity = (
-            -incidence.float() @ (pij.unsqueeze(2) ** 2 + qij.unsqueeze(2) ** 2)
-        ).squeeze()
+            1 - (torch.abs(incidence.float()) @ topology.unsqueeze(2)).squeeze()
+        )
 
+        # connectivity = (
+        #     -incidence.float() @ (pij.unsqueeze(2) ** 2 + qij.unsqueeze(2) ** 2)
+        # ).squeeze()
+
+        # probably add something with power flows, discuss with Rabab
         resids = torch.cat(
             [
                 pg_upp_resid,
@@ -226,7 +242,11 @@ class Utils:
             ],
             dim=1,
         )
-        return torch.clamp(resids, min=0)
+
+        violated_resid = torch.clamp(resids, min=0)
+        # print(violated_resid[:,0])
+
+        return violated_resid
 
     def ineq_resid(self, z, zc, idx):  # Z = [z,zc]
 
@@ -530,7 +550,7 @@ class Utils:
         """
         return the completion variables to satisfy the power flow equations
 
-        Args:
+        args:
             x: the input to the neural network
             v: the voltage magnitudes
             p_flow: the active power flows
@@ -554,10 +574,79 @@ class Utils:
         pl = x[:, :, 0]
         ql = x[:, :, 1]
 
-        pg = pl + (incidence.float() @ p_flow_corrected.unsqueeze(2)).squeeze()
-        qg = ql + (incidence.float() @ q_flow_corrected.unsqueeze(2)).squeeze()
+        pg = pl - (incidence.float() @ p_flow_corrected.unsqueeze(2)).squeeze()
+        qg = ql - (incidence.float() @ q_flow_corrected.unsqueeze(2)).squeeze()
 
         return pg, qg, p_flow_corrected, q_flow_corrected
+
+    def dist_opt_dispatch(self, z, zc, y, switch_mask):
+        """
+        dist_opt_dispatch returns the squared distance between the the output of 
+        the neural network and the completion variable from the reference solution
+
+        args:
+            z_hat: the output of the neural network
+            zc_hat: the completion variables
+            y: the reference solution
+            switch_mask: the mask for the switches
+        returns:
+            dispatch_resid: the squared distance between the the output of the neural network and the completion variable from the refernce solution
+        """
+        _, opt_y_no_last, opt_pij, opt_pji, opt_qij, opt_qji_sw, opt_v, opt_plf, opt_qlf = self.decompose_vars_z(y[:,:24])
+        _,y_last, opt_qji_nosw, opt_pg, opt_qg = self.decompose_vars_zc(y[:,24::])
+        # _, opt_y_no_last, opt_pij, opt_pji, opt_qij, opt_qji_sw, opt_v, opt_plf, opt_qlf = self.decompose_vars_z(y[:,:195])
+        # _,y_last, opt_qji_nosw, opt_pg, opt_qg = self.decompose_vars_zc(y[:,195::])
+        opt_qji = torch.concat((opt_qji_nosw, opt_qji_sw), dim=1)
+        opt_pg[:,0] = opt_pg[:,0] - opt_plf
+        opt_qg[:,0] = opt_qg[:,0] - opt_qlf 
+        y = torch.cat((opt_y_no_last, y_last.view(-1,1)), dim=1)
+
+        pij, v, topology = self.decompose_vars_z_JA(z)
+        qij, pg, qg = self.decompose_vars_zc_JA(zc)
+        
+        delta_pij = (pij - (opt_pij - opt_pji)).pow(2)
+        delta_qij = (qij - (opt_qij - opt_qji)).pow(2)
+        delta_v = (v[:,1::] - opt_v).pow(2)
+        delta_pg = (pg - opt_pg).pow(2)
+        delta_qg = (qg - opt_qg).pow(2)
+        delta_topo = (topology[switch_mask].reshape_as(y) - y).pow(2)
+        
+        dist = torch.cat((delta_pij, delta_qij, delta_v, delta_pg, delta_qg, delta_topo), dim=1)
+
+        return dist
+
+    def average_sum_distance(self, z_hat, zc_hat, y, switch_mask):
+        """
+        average_sum_distance returns the average over a batch of the sum of the distances between the variables and the reference solution
+        
+        args:
+            z_hat: the output of the neural network
+            zc_hat: the completion variables
+            y: the reference solution
+
+        returns:
+            average_sum_distance: the average over a batch of the sum of the distances between the variables and the reference solution    
+        """
+        
+        dispatch_resid = self.dist_opt_dispatch(
+            z_hat, zc_hat, y, switch_mask
+        )  # B x 3M + 3N [pij,qij, y, v, pg, qg]
+        batch_mean_resid = torch.mean(dispatch_resid, dim=0)
+        average_sum_distance = torch.zeros(6)
+        average_sum_distance[0] = torch.sum(batch_mean_resid[0 : self.M])
+        average_sum_distance[1] = torch.sum(batch_mean_resid[self.M : 2 * self.M])
+        average_sum_distance[2] = torch.sum(batch_mean_resid[2 * self.M : 3 * self.M])
+        average_sum_distance[3] = torch.sum(
+            batch_mean_resid[3 * self.M : 3 * self.M + self.N]
+        )
+        average_sum_distance[4] = torch.sum(
+            batch_mean_resid[3 * self.M + self.N : 3 * self.M + 2 * self.N]
+        )
+        average_sum_distance[5] = torch.sum(
+            batch_mean_resid[3 * self.M + 2 * self.N : 3 * self.M + 3 * self.N]
+        )
+
+        return average_sum_distance
 
 
 def dc3Function(data):
@@ -784,13 +873,22 @@ def xgraph_xflatten(x_graph, batch_size, first_node=False):
     return xNN
 
 
-def total_loss(x, z, zc, criterion, utils, args, idx, incidence, train):
+def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
 
     obj_cost = criterion(z, zc)
     ineq_dist = utils.ineq_resid_JA(
         z, zc, idx, incidence
     )  # gives update for vector weight
+    # print(ineq_dist[0, :])
     ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
+    ineq_dist_avg = torch.mean(ineq_dist, dim=0)
+    ineq_dist_cat = torch.zeros(6)
+    ineq_dist_cat[0] = torch.mean(ineq_dist_avg.detach()[0:2*utils.N-2])
+    ineq_dist_cat[1] = torch.mean(ineq_dist_avg.detach()[2*utils.N-2:4*utils.N-4])
+    ineq_dist_cat[2] = torch.mean(ineq_dist_avg.detach()[4*utils.N-4:4*utils.N-2])
+    ineq_dist_cat[3] = torch.mean(ineq_dist_avg.detach()[4*utils.N-2:4*utils.N])
+    ineq_dist_cat[4] = torch.mean(ineq_dist_avg.detach()[4*utils.N:5*utils.N])
+    ineq_dist_cat[5] = torch.mean(ineq_dist_avg.detach()[5*utils.N:6*utils.N])
 
     soft_weight = args["softWeight"]
 
@@ -816,7 +914,46 @@ def total_loss(x, z, zc, criterion, utils, args, idx, incidence, train):
                 soft_weight_new,
             )
 
-    return obj_cost + soft_weight * ineq_cost, soft_weight
+    return obj_cost + soft_weight * ineq_cost, soft_weight, obj_cost, ineq_cost, ineq_dist_cat
+
+
+def opt_dispatch_dist(self, x, z, zc, idx, nn_mode):
+    _, _, _, _, _, _, v, plf, qlf = self.decompose_vars_z(z)
+    _, _, _, pg, qg = self.decompose_vars_zc(zc)
+
+    # get the optimal data value
+    if nn_mode == "train":
+        opt_y = self.trainY[idx]
+    elif nn_mode == "test":
+        opt_y = self.testY[idx]
+    elif nn_mode == "valid":
+        opt_y = self.validY[idx]
+
+    opt_z = opt_y[:, 0 : self.zdim]
+    opt_zc = opt_y[:, self.zdim : self.zcdim + self.zdim]
+    # self.zdim + (0:self.zcdim)
+
+    _, _, _, _, _, _, opt_v, opt_plf, opt_qlf = self.decompose_vars_z(opt_z)
+    _, _, _, opt_pg, opt_qg = self.decompose_vars_zc(opt_zc)
+
+    dispatch_resid = torch.cat(
+        [
+            torch.square(v - opt_v),
+            (torch.square(plf - opt_plf)).unsqueeze(1),
+            (torch.square(qlf - opt_qlf)).unsqueeze(1),
+            torch.square(pg - opt_pg),
+            torch.square(qg - opt_qg),
+        ],
+        dim=1,
+    )  # return squared error
+
+    return dispatch_resid
+
+
+def total_supervised_loss(data, idx, x, z, zc, soft_weight, args, mode):
+    dispatch_dist, topology_dist = loss_supervised(data, idx, x, z, zc, mode)
+    cost = torch.norm(dispatch_dist, dim=1) + torch.norm(topology_dist, dim=1)
+    return cost
 
 
 def grad_steps(x, z, zc, args, utils, idx, plotFlag):

@@ -61,6 +61,9 @@ def main(args):
     train_losses = np.zeros(num_epochs)
     valid_losses = np.zeros(num_epochs)
     for i in range(num_epochs):
+        if i==100:
+            print(i)
+
         train_losses[i] = train(model, optimizer, cost_fnc, train_loader, args, utils)
         valid_losses[i] = test_or_validate(model, cost_fnc, valid_loader, args, utils)
 

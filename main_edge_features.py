@@ -44,14 +44,25 @@ def main(args):
 
     num_epochs = args["epochs"]
     train_losses = np.zeros(num_epochs)
+    line_losses = np.zeros(num_epochs)
+    train_losses_ineq = np.zeros(num_epochs)
     valid_losses = np.zeros(num_epochs)
+    opt_gaps = np.zeros((num_epochs, 6))
+    ineq_distances = np.zeros((num_epochs, 6))
 
     # train and test
     for i in range(num_epochs):
+
         if i == 100:
             print(i)
 
-        train_losses[i] = train(model, optimizer, cost_fnc, train_loader, args, utils)
+        (
+            train_losses[i],
+            opt_gaps[i, :],
+            line_losses[i],
+            train_losses_ineq[i],
+            ineq_distances[i, :],
+        ) = train(model, optimizer, cost_fnc, train_loader, args, utils)
         valid_losses[i] = test_or_validate(model, cost_fnc, valid_loader, args, utils)
 
         print(
@@ -62,21 +73,25 @@ def main(args):
         description = "_".join((args["network"], args["GNN"], args["readout"]))
         torch.save(model.state_dict, os.path.join("trained_nn", description))
 
-    return train_losses, valid_losses
+    return train_losses, valid_losses, opt_gaps, line_losses, train_losses_ineq, ineq_distances
 
 
 def train(model, optimizer, criterion, loader, args, utils):
     model.train()
 
     epoch_loss = 0
+    opt_gap = torch.zeros(6)
+    ineq_dist = torch.zeros(6)
+    ineq_part_loss = 0
+    line_losses = 0
+
     for data in loader:
-        z_hat, zc_hat, x_input = model(data, utils)
+        z_hat, zc_hat = model(data, utils)
 
         # Znew_train, ZCnew_train = grad_steps(
         #     x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
         # )
-        train_loss, soft_weight = total_loss(
-            x_input,
+        train_loss, soft_weight, obj_cost, ineq_cost, ineq_dist_avg = total_loss(
             z_hat,
             zc_hat,
             criterion,
@@ -87,12 +102,24 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
 
+        opt_gap += utils.average_sum_distance(
+            z_hat.detach(), zc_hat.detach(), data.y.detach(), data.switch_mask.detach()
+        )
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
         epoch_loss += train_loss.detach().mean()
+        line_losses += obj_cost.detach().mean()
+        ineq_part_loss += soft_weight * ineq_cost.detach().mean()
+        ineq_dist += ineq_dist_avg
 
-    return epoch_loss / len(loader)
+    return (
+        epoch_loss / len(loader),
+        opt_gap / len(loader),
+        line_losses / len(loader),
+        ineq_part_loss / len(loader),
+        ineq_dist / len(loader),
+    )
 
 
 def test_or_validate(model, criterion, loader, args, utils):
@@ -102,13 +129,12 @@ def test_or_validate(model, criterion, loader, args, utils):
     for data in loader:
 
         with torch.no_grad():
-            z_hat, zc_hat, x_input = model(data, utils)
+            z_hat, zc_hat = model(data, utils)
 
         # Znew_train, ZCnew_train = grad_steps(
         #     x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
         # )
-        test_loss, soft_weight = total_loss(
-            x_input,
+        test_loss, soft_weight, _, _, _ = total_loss(
             z_hat,
             zc_hat,
             criterion,
@@ -121,8 +147,6 @@ def test_or_validate(model, criterion, loader, args, utils):
         test_loss_total += test_loss.detach().mean()
 
     return test_loss_total / len(loader)
-
-
 
 
 if __name__ == "__main__":

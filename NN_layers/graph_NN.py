@@ -113,11 +113,8 @@ class GatedSwitchesLayer(nn.Module):
 
         # Linear transformations for edge update and gating
         Ah = self.A(h)  # B x V x H
-        Bh = self.B(h)  # B x V x H
+        Bh = self.A(h)  # B x V x H
         Ce = self.C(e)  # B x V x V x H
-
-        test = Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce
-        # print(S[0, :, :])
 
         # Update switch features and compute switch gates (S acts as a mask)
         e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H
@@ -229,18 +226,18 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
 
         # Linear transformations for edge update and gating
         Ah = self.A(h)  # B x V x H
-        Bh = self.B(h)  # B x V x H
+        Bh = self.A(h)  # B x V x H
         Ce = self.C(e)  # B x V x V x H
-
-        test = Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce
-        # print(S[0, :, :])
 
         # Update switch features and compute switch gates (S acts as a mask)
         e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H
-        gates = torch.sigmoid(e)  # B x V x V x H
+        test_e = e[0, :, :, 0]
+        gates = S.unsqueeze(3) * torch.sigmoid(e)  # B x V x V x H
+        test_gates = gates[0, :, :, 0]
 
         # Update node features
         h = Uh + self.aggregate(Vh, A, S, gates)  # B x V x H
+        test_update_node = self.aggregate(Vh, A, S, gates)[0, :, :]
 
         # Normalize node features
         h = (
@@ -263,6 +260,8 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         # Apply non-linearity
         h = F.relu(h)
         e = F.relu(e)
+
+        # no residual connection for the first layer due to the change of dimension
 
         return h, e
 
