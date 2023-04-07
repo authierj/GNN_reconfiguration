@@ -48,12 +48,6 @@ def main(args):
     cost_fnc = utils.obj_fnc_JA
 
     num_epochs = args["epochs"]
-    # train_losses = np.zeros(num_epochs)
-    # line_losses = np.zeros(num_epochs)
-    train_losses_ineq = np.zeros(num_epochs)
-    valid_losses = np.zeros(num_epochs)
-    # opt_gaps = np.zeros((num_epochs, 6))
-    # ineq_distances = np.zeros((num_epochs, 6))
 
     save_dir = os.path.join(
         "results",
@@ -77,13 +71,6 @@ def main(args):
         if i == 100:
             print(i)
 
-        # (
-        #     train_losses[i],
-        #     opt_gaps[i, :],
-        #     line_losses[i],
-        #     train_losses_ineq[i],
-        #     ineq_distances[i, :],
-        # ) = train(model, optimizer, cost_fnc, train_loader, args, utils)
         train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils)
         valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils)
 
@@ -118,14 +105,6 @@ def main(args):
     torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
 
     return save_dir
-    # return (
-    #     train_losses,
-    #     valid_losses,
-    #     opt_gaps,
-    #     line_losses,
-    #     train_losses_ineq,
-    #     ineq_distances,
-    # )
 
 
 def train(model, optimizer, criterion, loader, args, utils):
@@ -147,18 +126,10 @@ def train(model, optimizer, criterion, loader, args, utils):
 
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
-    epoch_loss = 0
-    opt_gap = torch.zeros(6)
-    ineq_dist = torch.zeros(6)
-    ineq_part_loss = 0
-    line_losses = 0
 
     # TODO change data structure to save
     for data in loader:
         z_hat, zc_hat = model(data, utils)
-        # Znew_train, ZCnew_train = grad_steps(
-        #     x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
-        # )
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -170,28 +141,14 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
 
-        # opt_gap += utils.average_sum_distance(
-        #     z_hat.detach(),
-        #     zc_hat.detach(),
-        #     data.y.detach(),
-        #     data.switch_mask.detach(),
-        #     utils.zrdim,
-        # )
-
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
-        # epoch_loss += train_loss.detach().mean()
-        # line_losses += obj_cost.detach().mean()
-        # ineq_part_loss += soft_weight * ineq_cost.detach().mean()
-        # ineq_dist += ineq_dist_avg
 
-        # fmt: off
-        dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
-        # dict_agg(epoch_stats, 'train_time', train_time, op='sum')
-        
         dispatch_dist = utils.opt_dispatch_dist_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach(), data.switch_mask.detach())
+        # fmt: off
+        dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
         dict_agg(epoch_stats, 'train_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
         dict_agg(epoch_stats, 'train_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
         dict_agg(epoch_stats, 'train_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
@@ -200,14 +157,6 @@ def train(model, optimizer, criterion, loader, args, utils):
         dict_agg(epoch_stats, 'train_topology_error_min', torch.sum(torch.min(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
         # fmt: on
     return epoch_stats
-
-    # return (
-    #     epoch_loss / len(loader),
-    #     opt_gap / len(loader),
-    #     line_losses / len(loader),
-    #     ineq_part_loss / len(loader),
-    #     ineq_dist / len(loader),
-    # )
 
 
 def test_or_validate(model, criterion, loader, args, utils):
@@ -227,18 +176,9 @@ def test_or_validate(model, criterion, loader, args, utils):
     model.eval()
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
-    epoch_loss = 0
-    opt_gap = torch.zeros(6)
-    ineq_dist = torch.zeros(6)
-    ineq_part_loss = 0
-    line_losses = 0
 
-    # TODO change data structure to save
     for data in loader:
         z_hat, zc_hat = model(data, utils)
-        # Znew_train, ZCnew_train = grad_steps(
-        #     x_input, z_hat, zc_hat, args, utils, data.idx, plotFlag=False
-        # )
         valid_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -250,12 +190,10 @@ def test_or_validate(model, criterion, loader, args, utils):
             train=True,
         )
 
-        # fmt: off
-        dict_agg(epoch_stats, 'valid_loss', torch.sum(valid_loss).detach().cpu().numpy()/size, op='sum')
-        # dict_agg(epoch_stats, 'train_time', train_time, op='sum')
-        
         dispatch_dist = utils.opt_dispatch_dist_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach(), data.switch_mask.detach())
+        # fmt: off
+        dict_agg(epoch_stats, 'valid_loss', torch.sum(valid_loss).detach().cpu().numpy()/size, op='sum')
         dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
         dict_agg(epoch_stats, 'valid_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
         dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
