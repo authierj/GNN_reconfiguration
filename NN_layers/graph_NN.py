@@ -10,7 +10,6 @@ class GCN(nn.Module):
         torch.manual_seed(12)
         self.first_conv = GCNConv(args["inputFeatures"], args["hiddenFeatures"])
         self.conv = GCNConv(args["hiddenFeatures"], args["hiddenFeatures"])
-        self.last_conv = GCNConv(args["hiddenFeatures"], args["outputFeatures"])
         self.dropout = args["dropout"]
         self.layers = args["numLayers"]
 
@@ -20,14 +19,13 @@ class GCN(nn.Module):
 
         x = self.first_conv(x, edge_index)
         x = x.relu()
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        # x = F.dropout(x, p=self.dropout, training=self.training)
 
-        for i in range(self.layers - 2):
+        for i in range(self.layers - 1):
             x = self.conv(x, edge_index)
             x = x.relu()
-            x = F.dropout(x, p=self.dropout, training=self.training)
+            # x = F.dropout(x, p=self.dropout, training=self.training)
 
-        x = self.last_conv(x, edge_index)
         return x
 
 

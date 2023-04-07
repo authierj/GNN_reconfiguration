@@ -29,8 +29,8 @@ def main(args):
 
     utils = Utils(data)
 
-    graph_dataset = GraphDataSet(root="datasets/" + args["network"])
     # graph_dataset = GraphDataSet(root="datasets/" + args["network"])
+    graph_dataset = GraphDataSet(root="datasets/" + args["network"])
 
     # TODO change to arguments so that we can use different networks directly
     train_graphs = graph_dataset[0:3200]
@@ -310,13 +310,13 @@ if __name__ == "__main__":
         help="network identification",
     )
     parser.add_argument(
-        "--epochs", type=int, default=300, help="number of neural network epochs"
+        "--epochs", type=int, default=500, help="number of neural network epochs"
     )
     parser.add_argument(
         "--batchSize", type=int, default=200, help="training batch size"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-4, help="neural network learning rate"
+        "--lr", type=float, default=1e-3, help="neural network learning rate"
     )
     parser.add_argument(
         "--GNN",
@@ -333,7 +333,7 @@ if __name__ == "__main__":
         help="model for readout layer",
     )
     parser.add_argument(
-        "--numLayers", type=int, default=2, help="the number of layers in the GNN"
+        "--numLayers", type=int, default=4, help="the number of layers in the GNN"
     )
     parser.add_argument(
         "--inputFeatures",
@@ -437,7 +437,7 @@ if __name__ == "__main__":
         default=False,
         help="determine if the trained model will be saved",
     )
-    parser.add_argument("--dropout", type=float, default=0.5)
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--aggregation", type=str, default="sum", choices=["sum", "mean", "max"]
     )

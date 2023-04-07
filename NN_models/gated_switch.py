@@ -85,7 +85,7 @@ class GatedSwitchGNN(nn.Module):
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
         ]
         x_1 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
-        x_2 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
+        x_2 = x[switches_nodes[:, 0], switches_nodes[:, 2], :]
 
         x_g = torch.sum(x, dim=1)  # B x F
         x_g_extended = x_g[switches_nodes[:, 0], :]  # dim = num_switches*B x F
@@ -145,4 +145,51 @@ class GatedSwitchGNN(nn.Module):
 
         # p_test = torch.sum(data.x_mod[:,:,0], dim=1) - torch.sum(pg, dim=1)
         # q_test = torch.sum(data.x_mod[:,:,1], dim=1) - torch.sum(qg, dim=1)
+        return z, zc
+
+
+class GatedSwitchGNN_globalMLP(nn.Module):
+    def __init__(self, args, N, output_dim):
+        super().__init__()
+        self.Encoder = GatedSwitchesEncoder(args)
+        self.MLP = GlobalMLP_reduced(args, N, output_dim)
+        self.completion_step = args["useCompl"]
+
+    def forward(self, data, utils):
+
+        # encode
+        x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
+        
+        # decode
+        switches_nodes = torch.nonzero(data.S.triu())
+        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
+
+        switches = s[
+            switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
+        ]
+        
+        SMLP_input = torch.cat((switches.view(200,-1), x.view(200, -1)), axis=1)
+        SMLP_out = self.MLP(SMLP_input) #[pij, v, p_switch]
+        
+        p_switch = SMLP_out[:, -utils.numSwitches : :]
+        n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
+
+        topology = utils.physic_informed_rounding(
+            p_switch.flatten(), n_switch_per_batch
+        )
+        graph_topo = torch.ones((200, utils.M)).bool()
+        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+
+        v = SMLP_out[:, utils.M : utils.M + utils.N]
+        v[:, 0] = 1
+        pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
+            data.x_mod,
+            v,
+            SMLP_out[:, 0 : utils.M],
+            graph_topo,
+            utils.A,
+        )
+
+        z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
+        zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
         return z, zc

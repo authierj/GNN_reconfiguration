@@ -10,10 +10,12 @@ set_matplotlib_formats("retina")
 
 args = default_args()
 
-args["epochs"] = 1000
-args["hiddenFeatures"] = 16
-args["numLayers"] = 10
+args["epochs"] = 500
+args["hiddenFeatures"] = 4
+args["numLayers"] = 4
 args["aggregation"] = "max"
+args["lr"] = 1e-3
+args["dropout"] = 0.1
 # test_param = "lr"
 # lr = [1e-2, 1e-3]
 

@@ -21,6 +21,26 @@ class GlobalMLP(torch.nn.Module):
         return x
 
 
+class GlobalMLP_reduced(torch.nn.Module):
+    def __init__(self, args, n_nodes, output_dim):
+        super(GlobalMLP_reduced, self).__init__()
+        torch.manual_seed(12)
+        input_features = args["hiddenFeatures"] * (n_nodes)
+        hidden_features = input_features
+        self.lin_input = Linear(input_features, hidden_features)
+        self.lin_output = Linear(hidden_features, output_dim)
+        self.dropout = args["dropout"]
+
+    def forward(self, x):
+        x = self.lin_input(x)
+        x = x.relu()
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.lin_output(x)
+        return x
+
+
+
+
 class SMLP(torch.nn.Module):
     def __init__(
         self, input_features, hidden_features, dropout
