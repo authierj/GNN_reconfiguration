@@ -75,13 +75,14 @@ def parse_NN_size(experiment_filepath):
                         # stats_dict = np.load(exp_handle, allow_pickle=True)
                         stats_dict = pickle.load(exp_handle)  # load the stats
                         test = stats_dict["train_loss"]
+                        # fmt: off
                         dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"])
                         dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"])
                         dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"])
                         dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"])
                         dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"])
                         dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"])
-
+                        # fmt: on
                         run_counter += 1  # increment run counter
         if flag_start:
             plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
@@ -197,6 +198,7 @@ def parse_data_size(experiment_filepath):
 
                         # save the stats per run for the experiment
                         stats_dict = pickle.load(exp_handle)  # load the stats
+                        # fmt: off 
                         dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"])
                         dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"])
                         dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"])
@@ -207,7 +209,7 @@ def parse_data_size(experiment_filepath):
                         dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"])
                         dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"])
                         dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"])
-
+                        # fmt: on
                         # exp_stats['T_loss'] += stats_dict["train_loss"]
                         # exp_stats['V_loss'] += stats_dict["valid_loss"]
                         # exp_stats['T_dispatch_mean'] += stats_dict["train_dispatch_error_mean"]
@@ -292,6 +294,7 @@ def parse_pareto_datasize_NN(exp_filepaths):
                             # save the stats per run for the experiment
                             stats_dict = pickle.load(exp_handle)  # load the stats
                             # TODO: get the relevant data
+                            # fmt: off
                             dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"])
                             dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"])
                             dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"])
@@ -300,7 +303,7 @@ def parse_pareto_datasize_NN(exp_filepaths):
                             dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"])
                             dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"])
                             dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"])
-
+                            # fmt: on
                             run_counter += 1
 
             if flag_start:
@@ -418,49 +421,3 @@ def plot_pareto_datasize_NN(exp_stats):
 if __name__ == '__main__':
     print('Plotting ------')
     main()
-
-
-
-
-
-## Plotting with old stats (i.e. saving everything)
-# plt.figure(1)  # train loss
-# plt.yscale("log")
-# plt.plot(np.mean(stats_dict["train_loss"], 1), label='NN-' + exp_nn)
-# plt.figure(2)  # valid loss
-# plt.yscale("log")
-# plt.plot(np.mean(stats_dict["valid_loss"], 1), label='NN-' + exp_nn)
-# plt.figure(3)  # T & V dispatch error, log scale
-# plt.yscale("log")
-# plt.plot(np.mean(np.mean(stats_dict["train_dispatch_error"], 1), 1),
-#          label='NN-' + exp_nn + '-T')
-# plt.plot(np.mean(np.mean(stats_dict["valid_dispatch_error"], 1), 1),
-#          label='NN-' + exp_nn + '-V')
-# plt.figure(4)  # T & V topology error
-# plt.plot(np.mean(np.mean(stats_dict["train_topology_error"], 1), 1),
-#          label='NN-' + exp_nn + '-T')
-# plt.plot(np.mean(np.mean(stats_dict["valid_topology_error"], 1), 1),
-#          label='NN-' + exp_nn + '-V')
-# plt.figure(5)  # V ineq error violation
-# plt.plot(np.mean(stats_dict["valid_ineq_num_viol_1"], 1), label='NN-' + exp_nn)
-# plt.figure(6)  # V ineq error violation
-# plt.plot(np.mean(stats_dict["valid_ineq_num_viol_0"], 1), label='NN-' + exp_nn)
-# plt.figure(3)  # T & V dispatch error
-# plt.plot(np.mean(np.mean(stats_dict["train_dispatch_error"], 1), 1),
-#          label='NN-' + exp_nn + '-T')
-# plt.plot(np.mean(np.mean(stats_dict["valid_dispatch_error"], 1), 1),
-#          label='NN-' + exp_nn + '-V')
-# legends['dispatch_err'] += ['NN-' + exp_nn + '-T', 'NN-' + exp_nn + '-V']
-
-# stats_dict["train_loss"]  # dim: epochs x sample
-# stats_dict["train_dispatch_error"]  # dim: epochs x sample x dispatch variable
-# stats_dict["train_topology_error"]  # dim: epochs x sample x topology variable
-# stats_dict["train_time"]  # dim: epoch
-# stats_dict["valid_loss"]  # dim: epochs x sample
-# stats_dict["valid_dispatch_error"]  # dim: epochs x sample x dispatch variable
-# stats_dict["valid_topology_error"]  # dim: epochs x sample x topology variable
-# stats_dict["valid_ineq_max"]  # dim: epochs x sample
-# stats_dict["valid_ineq_mean"]  # dim: epochs x sample
-# stats_dict["valid_ineq_num_viol_0"]  # dim: epochs x sample
-# stats_dict["valid_ineq_num_viol_1"]  # dim: epochs x sample
-# stats_dict["valid_ineq_num_viol_2"]  # dim: epochs x sample
