@@ -15,7 +15,17 @@ from NN_models.gated_switch import GatedSwitchGNN_globalMLP
 
 
 def main(args):
+    """
+    main takes args as input, train and test a neural network and returns the directory where the results are stored
 
+    args:
+        args: dictionary with arguments
+    return:
+        save_dir: directory where the results are stored
+    """
+    # Making the code device-agnostic
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print("Using device: ", device)
     dataset_name = args["network"] + "_" + "dataset_test"
     filepath = "datasets/" + args["network"] + "/processed/" + dataset_name
     try:
@@ -26,6 +36,7 @@ def main(args):
 
     utils = Utils(data)
     graph_dataset = GraphDataSet(root="datasets/" + args["network"])
+    # graph_dataset = graph_dataset.to_device(device)
     # graph_dataset = GraphDataSetWithSwitches(root="datasets/" + args["network"])
 
     # TODO change to arguments so that we can use different networks directly
@@ -44,6 +55,7 @@ def main(args):
     # model = GatedSwitchGNN_globalMLP(args, utils.N, output_dim)
     # model = GCN_Global_MLP_reduced_model(args, utils.N, output_dim)
     model = GCN_local_MLP(args, utils.N, output_dim)
+    model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc_JA
 
