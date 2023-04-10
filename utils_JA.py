@@ -5,25 +5,25 @@ from torch.autograd import Function
 
 
 class Utils:
-    def __init__(self, data):
+    def __init__(self, data, device):
 
-        self.A = data.A
+        self.A = data.A.to(device)
         self.M = data.M
         self.N = data.N
         self.numSwitches = data.numSwitches
         self.pl = data.pl
         self.ql = data.ql
-        self.Rall = data.Rall
-        self.Xall = data.Xall
-        self.pgUpp = data.pgUpp
-        self.pgLow = data.pgLow
-        self.qgUpp = data.qgUpp
-        self.qgLow = data.qgLow
+        self.Rall = data.Rall.to(device)
+        self.Xall = data.Xall.to(device)
+        self.pgUpp = data.pgUpp.to(device)
+        self.pgLow = data.pgLow.to(device)
+        self.qgUpp = data.qgUpp.to(device)
+        self.qgLow = data.qgLow.to(device)
         self.bigM = data.bigM
-        self.Xall = data.Xall
-        self.Rall = data.Rall
-        self.vUpp = data.vUpp
-        self.vLow = data.vLow
+        self.Xall = data.Xall.to(device)
+        self.Rall = data.Rall.to(device)
+        self.vUpp = data.vUpp.to(device)
+        self.vLow = data.vLow.to(device)
         self.Aabs = data.Aabs
         self.dineq_dz_fullmat = data.dineq_dz_fullmat
         self.dzc_dz_mat = data.dzc_dz_mat
@@ -31,10 +31,11 @@ class Utils:
         self.dzc_dx = data.dzc_dx
         self.S = data.S
         self.Adj = data.Adj
-        self.D_inv = data.D_inv
-        self.Incidence_parent = data.mStart.to_dense()
-        self.Incidence_child = data.mEnd.to_dense()
+        self.D_inv = data.D_inv.to(device)
+        self.Incidence_parent = data.mStart.to_dense().to(device)
+        self.Incidence_child = data.mEnd.to_dense().to(device)
         self.zrdim = data.zdim
+        self.device = device
 
     def decompose_vars_z(self, z):
         """
@@ -463,37 +464,46 @@ class Utils:
         return:
             The topology of the graph
         """
+        
+        """
         switch_indices = torch.cumsum(n_switches, dim=0)
+        begin = switch_indices[0:-1]
+        end = switch_indices[1:]
         topology = torch.zeros_like(s).bool()
         L_min = (self.N - 1) - (self.M - n_switches).int()
 
         s_idx_before = 0
         i = 0
+
         for s_idx in switch_indices:
             closed_indices = torch.topk(s[s_idx_before:s_idx], k=L_min[i]).indices
             topology[s_idx_before:s_idx][closed_indices] = True
             i = i + 1
             s_idx_before = s_idx
 
-        # set the power flows to zero for open switches
-        # p_corrected = topology * p
-        # q_corrected = topology * q
         return topology
+        """
 
-        # switch_list = torch.split(s, n_switches.tolist())
-        # total_topology = torch.zeros()
-        # i = 0
-        # for switches in switch_list:
-        #     i = i + 1
-        #     # find indices of the largest L_min[i] values
-        #     closed_indices = torch.topk(switches, k=L_min[i]).indices
+        n_switches = n_switches[0]
+        L_min = (self.N - 1) - (self.M - n_switches).int()
+        p_switches = s.view(200,-1)
+        closed_indices = torch.topk(p_switches, k=L_min).indices
+        topology = torch.zeros_like(p_switches, dtype=torch.bool)
+        
+        top_l_values, _ = torch.topk(p_switches, L_min, dim=1)
+        
+        # create a mask indicating which elements in p_switch are in the top L values
+        mask = (p_switches >= top_l_values[:, -1].unsqueeze(1))
+        
+        # create a tensor of zeros with the same shape as p_switch
+        top_l = torch.zeros_like(p_switches, dtype=torch.bool)
+        
+        # use the mask to set the top L values to True
+        top_l[mask] = True
+    
+        topology = top_l.flatten()
 
-        #     topology = torch.zeros_like(switches)
-        #     topology[closed_indices] = 1
-
-        #     switches.copy_(topology)
-
-        # return torch.cat(switch_list)
+        return topology
 
     def complete_JA(self, x, v, p_flow, topo, incidence):
         """
@@ -518,7 +528,9 @@ class Utils:
         ) / self.Xall
 
         # TODO assert here that the equation is satisfied with vi-vj == qij + pij
-
+        
+        # print(q_flow.device)
+        # print(topo.device)
         q_flow_corrected = topo * q_flow.float()
         p_flow_corrected = topo * p_flow
 
@@ -950,7 +962,7 @@ def default_args():
     defaults = {}
 
     defaults["network"] = "baranwu33"
-    defaults["epochs"] = 500
+    defaults["epochs"] = 10
     defaults["batchSize"] = 200
     defaults["lr"] = 1e-3  # NN learning rate
     defaults["GNN"] = "GCN"
