@@ -60,7 +60,7 @@ class GatedSwitchesEncoder(nn.Module):
 
 
 class GatedSwitchGNN(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, N, output_dim):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
         self.SMLP = SMLP(
@@ -70,6 +70,7 @@ class GatedSwitchGNN(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.completion_step = args["useCompl"]
+        self.device = args["device"]
 
     def forward(self, data, utils):
 
@@ -99,14 +100,14 @@ class GatedSwitchGNN(nn.Module):
         topology = utils.physic_informed_rounding(
             SMLP_out[:, 0], n_switches
         )  # num_switches*B
-        graph_topo = torch.ones((x.shape[0], utils.M)).bool()
+        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device).bool()
         graph_topo[data.switch_mask] = topology
 
-        ps_flow = torch.zeros((x.shape[0], utils.M))
+        ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[data.switch_mask] = SMLP_out[:, 1]
-        vs_parent = torch.zeros((x.shape[0], utils.M))
+        vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
         vs_parent[data.switch_mask] = SMLP_out[:, 2]
-        vs_child = torch.zeros((x.shape[0], utils.M))
+        vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
         vs_child[data.switch_mask] = SMLP_out[:, 3]
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
@@ -120,11 +121,11 @@ class GatedSwitchGNN(nn.Module):
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
-        pc_flow = torch.zeros((x.shape[0], utils.M))
+        pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         pc_flow[~data.switch_mask] = CMLP_out[:, 0]
-        vc_parent = torch.zeros((x.shape[0], utils.M))
+        vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
         vc_parent[~data.switch_mask] = CMLP_out[:, 1]
-        vc_child = torch.zeros((x.shape[0], utils.M))
+        vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
         vc_child[~data.switch_mask] = CMLP_out[:, 2]
 
         p_flow = ps_flow + pc_flow
