@@ -6,7 +6,6 @@ from torch.autograd import Function
 
 class Utils:
     def __init__(self, data, device):
-
         self.A = data.A.to(device)
         self.M = data.M
         self.N = data.N
@@ -149,7 +148,6 @@ class Utils:
         return resids
 
     def ineq_resid(self, z, zc, idx):  # Z = [z,zc]
-
         zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
@@ -455,7 +453,7 @@ class Utils:
 
         fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
         return fncval
-    
+
     def physic_informed_rounding(self, s, n_switches):
         """
         args:
@@ -464,7 +462,7 @@ class Utils:
         return:
             The topology of the graph
         """
-        
+
         """
         switch_indices = torch.cumsum(n_switches, dim=0)
         begin = switch_indices[0:-1]
@@ -486,21 +484,19 @@ class Utils:
 
         n_switches = n_switches[0]
         L_min = (self.N - 1) - (self.M - n_switches).int()
-        p_switches = s.view(200,-1)
-        closed_indices = torch.topk(p_switches, k=L_min).indices
-        topology = torch.zeros_like(p_switches, dtype=torch.bool)
-        
+        p_switches = s.view(200, -1)
+
         top_l_values, _ = torch.topk(p_switches, L_min, dim=1)
-        
+
         # create a mask indicating which elements in p_switch are in the top L values
-        mask = (p_switches >= top_l_values[:, -1].unsqueeze(1))
-        
+        mask = p_switches >= top_l_values[:, -1].unsqueeze(1)
+
         # create a tensor of zeros with the same shape as p_switch
-        top_l = torch.zeros_like(p_switches, dtype=torch.bool)
-        
+        top_l = torch.zeros_like(p_switches, dtype=torch.bool, device=self.device)
+
         # use the mask to set the top L values to True
         top_l[mask] = True
-    
+
         topology = top_l.flatten()
 
         return topology
@@ -528,9 +524,7 @@ class Utils:
         ) / self.Xall
 
         # TODO assert here that the equation is satisfied with vi-vj == qij + pij
-        
-        # print(q_flow.device)
-        # print(topo.device)
+
         q_flow_corrected = topo * q_flow.float()
         p_flow_corrected = topo * p_flow
 
@@ -874,7 +868,6 @@ def grad_steps(x, z, zc, args, utils, idx, plotFlag):
 
         iters = 0
         for i in range(num_steps):
-
             delz, delphiz = utils.corr_steps(x, z_new, zc_new, idx)
             new_delz = lr * delz + momentum * old_delz
             new_delphiz = lr * delphiz + momentum * old_delphiz
@@ -935,7 +928,7 @@ def grad_steps(x, z, zc, args, utils, idx, plotFlag):
         return z, zc
 
 
-def dict_agg(stats, key, value, op="sum"):
+def dict_agg(stats, key, value, op):
     """
     dict_agg is a function that aggregates values in a dictionary.
 
@@ -943,7 +936,7 @@ def dict_agg(stats, key, value, op="sum"):
         stats: a dictionary
         key: the key of the dictionary
         value: the value to be aggregated
-        op: the operation to be performed, op in ['sum', 'concat']
+        op: the operation to be performed, op in ['sum', 'concat', 'vstack']
 
     returns: None
     """
@@ -951,7 +944,9 @@ def dict_agg(stats, key, value, op="sum"):
         if op == "sum":
             stats[key] += value
         elif op == "concat":
-            stats[key] = np.concatenate((stats[key], value), axis=0)
+            stats[key] = np.hstack((stats[key], value))
+        elif op == "vstack":
+            stats[key] = np.vstack((stats[key], value))
         else:
             raise NotImplementedError
     else:
@@ -962,7 +957,7 @@ def default_args():
     defaults = {}
 
     defaults["network"] = "baranwu33"
-    defaults["epochs"] = 10
+    defaults["epochs"] = 500
     defaults["batchSize"] = 200
     defaults["lr"] = 1e-3  # NN learning rate
     defaults["GNN"] = "GCN"
@@ -990,7 +985,7 @@ def default_args():
     defaults["corrMomentum"] = 0.5  # 0.5
     defaults["saveAllStats"] = True
     defaults["resultsSaveFreq"] = 50
-    defaults["saveModel"] = False
+    defaults["saveModel"] = True
     defaults["dropout"] = 0.1
     defaults["aggregation"] = "max"
     defaults["norm"] = "batch"
