@@ -8,8 +8,10 @@ from utils_JA import dict_agg
 
 
 def main():
-
-    exp_names = ["GCN_local_MLP_hidden_features_test"]
+    # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
+    # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
+    # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
+    exp_names = ["GCN_local_MLP_lr_test"]
 
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
@@ -22,7 +24,10 @@ def main():
         exit(1)
     else:
         # parse_pareto_datasize_NN(filepaths)
-        parse_NN_size(filepaths)  # currently only for a single file at a time
+        for fp in filepaths:
+            print(fp)
+            parse_NN_size([fp])
+        # parse_NN_size(filepaths)  # currently only for a single file at a time
         # parse_pareto_PhMethod(filepaths)
     return
 
@@ -42,6 +47,8 @@ def parse_NN_size(experiment_filepath):
             if not flag_start:
                 if line == "###":
                     flag_start = True
+            elif line[0] == "#":
+                continue
             else:
                 # print(line)
                 exp_dir = line[line.find("dir: ") + 13 :]
@@ -58,14 +65,21 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[
-                            line.find("hidden_features: ") : line.find(", run")
-                        ]
+                        exp_nn = line[line.find("lr: ") : line.find(", run")]
+                        # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
 
-                        if not exp_nn == current_nn and not current_nn == "":
+                        if exp_nn != current_nn and current_nn != "":
                             # plot previous experiment results
                             ## Plotting with new stats (i.e. save results per epoch only)
+                            # fmt: off
+                            exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
+                            exp_stats["V_loss_var"] = np.var(exp_stats["V_loss_var"], axis=0)
+                            exp_stats["T_dispatch_mean_var"] = np.var(exp_stats["T_dispatch_mean_var"], axis=0)
+                            exp_stats["V_dispatch_mean_var"] = np.var(exp_stats["V_dispatch_mean_var"], axis=0)
+                            exp_stats["T_topology_mean_var"] = np.var(exp_stats["T_topology_mean_var"], axis=0)
+                            exp_stats["V_topology_mean_var"] = np.var(exp_stats["V_topology_mean_var"], axis=0)
+                            # fmt: on
                             plot_exp_NNsize(
                                 exp_stats, run_counter, current_nn, exp_counter
                             )
@@ -84,37 +98,66 @@ def parse_NN_size(experiment_filepath):
                         stats_dict = pickle.load(exp_handle)  # load the stats
                         test = stats_dict["train_loss"]
                         # fmt: off
-                        dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"])
-                        dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"])
-                        dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"])
-                        dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"])
-                        dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"])
-                        dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"])
+                        dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"], op="sum")
+                        dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"], op="sum")
+                        dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
+                        dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
+                        dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"], op="sum")
+                        dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"], op="sum")
+
+
+                        dict_agg(exp_stats, 'T_loss_var', stats_dict["train_loss"], op="vstack")
+                        dict_agg(exp_stats, 'V_loss_var', stats_dict["valid_loss"], op="vstack")
+                        dict_agg(exp_stats, 'T_dispatch_mean_var', stats_dict["train_dispatch_error_mean"], op="vstack")
+                        dict_agg(exp_stats, 'V_dispatch_mean_var', stats_dict["valid_dispatch_error_mean"], op="vstack")
+                        dict_agg(exp_stats, 'T_topology_mean_var', stats_dict["train_topology_error_mean"], op="vstack")
+                        dict_agg(exp_stats, 'V_topology_mean_var', stats_dict["valid_topology_error_mean"], op="vstack")
                         # fmt: on
                         run_counter += 1  # increment run counter
         if flag_start:
+            exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
+            exp_stats["V_loss_var"] = np.var(exp_stats["V_loss_var"], axis=0)
+            exp_stats["T_dispatch_mean_var"] = np.var(
+                exp_stats["T_dispatch_mean_var"], axis=0
+            )
+            exp_stats["V_dispatch_mean_var"] = np.var(
+                exp_stats["V_dispatch_mean_var"], axis=0
+            )
+            exp_stats["T_topology_mean_var"] = np.var(
+                exp_stats["T_topology_mean_var"], axis=0
+            )
+            exp_stats["V_topology_mean_var"] = np.var(
+                exp_stats["V_topology_mean_var"], axis=0
+            )
             plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
 
     if flag_start:
+        begin = exp_filepath.find("/") + 1
+        end = exp_filepath[begin::].find("/")
+        gnn = exp_filepath[begin : begin + end]
         # add legend and title to the plots
         plt.figure(1)  # train loss
         plt.legend(loc="upper right")
-        plt.title("Training loss, mean across samples")
+        plt.title(gnn + ", Training loss, mean across samples")
         plt.figure(2)  # valid loss
         plt.legend(loc="upper right")
-        plt.title("Validation loss, mean across samples")
+        plt.title(gnn + ", Validation loss, mean across samples")
         plt.figure(3)  # T & V dispatch error, log scale
         plt.legend(loc="upper right")
-        plt.title("Dispatch error, log-y")
+        plt.title(gnn + ", Dispatch error, log-y")
         plt.figure(4)  # T & V topology error
         plt.legend(loc="upper right")
-        plt.title("Topology error")
-        # plt.figure(5)  # V ineq error violation
-        # plt.legend(loc="upper right")
-        # plt.title('Inequality error violation, 0.001')
-        # plt.figure(6)  # V ineq error violation
-        # plt.legend(loc="upper right")
-        # plt.title('Inequality error violation, 0.01')
+        plt.title(gnn + ", Topology error")
+        plt.figure(5)  # V ineq error violation
+        plt.legend(loc="upper right")
+        plt.title(gnn + ", Inequality error violation, 0.001")
+        plt.figure(6)  # V ineq error violation
+        plt.legend(loc="upper right")
+        plt.title(gnn + ", Inequality error violation, 0.01")
 
         plt.show()  # enter non-interactive mode, and keep plots
     else:
@@ -124,26 +167,38 @@ def parse_NN_size(experiment_filepath):
 
 
 def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
+    x = np.arange(exp_stats["T_loss"].shape[0])
     plt.figure(1)  # train loss
     plt.yscale("log")
-    test = exp_stats["T_loss"]
     plt.plot(
         exp_stats["T_loss"] / run_counter,
-        label="NN-" + current_nn,
+        label=current_nn,
         color=f"C{exp_counter}",
+    )
+    plt.fill_between(
+        x=x,
+        y1=-exp_stats["T_loss_var"] + exp_stats["T_loss"] / run_counter,
+        y2=exp_stats["T_loss_var"] + exp_stats["T_loss"] / run_counter,
+        color=f"C{exp_counter}",
+        alpha=0.2,
     )
     plt.figure(2)  # valid loss
     plt.yscale("log")
     plt.plot(
         exp_stats["V_loss"] / run_counter,
-        label="NN-" + current_nn,
         color=f"C{exp_counter}",
+    )
+    plt.fill_between(
+        x=x,
+        y1=-exp_stats["V_loss_var"] + exp_stats["V_loss"] / run_counter,
+        y2=exp_stats["V_loss_var"] + exp_stats["V_loss"] / run_counter,
+        color=f"C{exp_counter}",
+        alpha=0.2,
     )
     plt.figure(3)  # T & V dispatch error, log scale
     plt.yscale("log")
     plt.plot(
         exp_stats["T_dispatch_mean"] / run_counter,
-        label="NN-" + current_nn,
         color=f"C{exp_counter}",
     )
     plt.plot(
@@ -152,24 +207,36 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.figure(4)  # T & V topology error
     plt.plot(
         exp_stats["T_topology_mean"] / run_counter,
-        label="NN-" + current_nn,
         color=f"C{exp_counter}",
     )
     plt.plot(
         exp_stats["V_topology_mean"] / run_counter, "--", color=f"C{exp_counter}"
     )  # + '-V'
-    # plt.figure(5)  # V ineq error violation
-    # plt.plot(exp_stats['V_ineq_num_viol_0'] / run_counter, label='NN-' + current_nn)
-    # plt.figure(6)  # V ineq error violation
-    # plt.plot(exp_stats['V_ineq_num_viol_1'] / run_counter, label='NN-' + current_nn)
+    plt.fill_between(
+        x=x,
+        y1=-exp_stats["T_topology_mean_var"] + exp_stats["T_topology_mean"] / run_counter,
+        y2=exp_stats["T_topology_mean_var"] + exp_stats["T_topology_mean"] / run_counter,
+        color=f"C{exp_counter}",
+        alpha=0.2,
+    )
+    plt.figure(5)  # V ineq error violation
+    plt.plot(np.mean(exp_stats["V_ineq_num_viol_0"], axis=1) / run_counter)
+    plt.figure(6)  # V ineq error violation
+    plt.plot(np.mean(exp_stats["V_ineq_num_viol_1"], axis=1) / run_counter)
 
-    ## print final epoch results:
+    # print final epoch results:
     print("\n\n ---------- \nNN size: {}".format(current_nn))
-    # print("\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
-    #       "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
-    #     exp_stats['V_loss'][-1] / run_counter, exp_stats['V_dispatch_mean'][-1] / run_counter,
-    #     exp_stats['V_topology_mean'][-1] / run_counter, exp_stats['V_ineq_mag_mean'][-1] / run_counter,
-    #     exp_stats['V_ineq_mag_max'][-1] / run_counter, exp_stats['V_ineq_num_viol_1'][-1] / run_counter))
+    print(
+        "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
+        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
+            exp_stats["V_loss"][-1] / run_counter,
+            exp_stats["V_dispatch_mean"][-1] / run_counter,
+            exp_stats["V_topology_mean"][-1] / run_counter,
+            exp_stats["V_ineq_mag_mean"][-1] / run_counter,
+            exp_stats["V_ineq_mag_max"][-1] / run_counter,
+            exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
+        )
+    )
 
     return
 
