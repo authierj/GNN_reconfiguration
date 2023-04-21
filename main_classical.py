@@ -68,7 +68,8 @@ def main(args):
     if args["saveModel"]:
         save_dir = os.path.join(
             "results",
-            args["model"],"jump_lr",
+            args["model"],
+            "jump_lr",
             "_".join(
                 [
                     f'{args["numLayers"]}',
@@ -132,7 +133,9 @@ def main(args):
         else:
             stats = train_epoch_stats
 
-        if i % args["resultsSaveFreq"] == 0 and (args["saveModel"] or args["saveAllStats"]):
+        if i % args["resultsSaveFreq"] == 0 and (
+            args["saveModel"] or args["saveAllStats"]
+        ):
             torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
             with open(file, "wb") as f:
                 # np.save(f, stats)
@@ -150,7 +153,8 @@ def main(args):
     if args["saveModel"]:
         return save_dir
     else:
-        return 
+        return
+
 
 def train(model, optimizer, criterion, loader, args, utils):
     """
@@ -191,6 +195,10 @@ def train(model, optimizer, criterion, loader, args, utils):
             utils.A,
             train=True,
         )
+        if args["topoLoss"]:
+            train_loss += args["topoWeight"] * torch.mean(
+                topology_dist(z_hat, data.y, data.switch_mask, utils, args), dim=1
+            )
 
         # time_start = time.time()
         train_loss.sum().backward()
@@ -270,7 +278,12 @@ def test_or_validate(model, criterion, loader, args, utils):
             z_hat.detach(), data.y.detach(), data.switch_mask.detach()
         )
         eps_converge = args["corrEps"]
-        dict_agg(epoch_stats, 'valid_loss', torch.sum(valid_loss).detach().cpu().numpy()/size, op='sum')
+        dict_agg(
+            epoch_stats,
+            "valid_loss",
+            torch.sum(valid_loss).detach().cpu().numpy() / size,
+            op="sum",
+        )
         if args["saveModel"]:
             # fmt: off
             dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
@@ -367,6 +380,9 @@ if __name__ == "__main__":
         action="store_true",
         help="whether to save all stats, or just those from latest epoch",
     )
+    parser.add_argument("--topoLoss", action="store_true", help="whether to use topology loss")
+    parser.add_argument("--topoWeight", type=float, default=100, help="topology loss weight")
+
     parser.add_argument(
         "--resultsSaveFreq",
         type=int,

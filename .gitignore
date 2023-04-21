@@ -8,6 +8,8 @@ dataprofiles/HawaiiData/.DS_Store
 dataprofiles/.DS_Store
 .idea/
 results/*
+results_copy/*
 plots/*
-datasets/*
+datasets/baranwu33/*
+datasets/node4/*
 

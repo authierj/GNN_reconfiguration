@@ -748,23 +748,9 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
     ineq_dist = utils.ineq_resid_JA(
         z, zc, idx, incidence
     )  # gives update for vector weight
-    # print(ineq_dist[0, :])
     ineq_cost = torch.linalg.vector_norm(
         ineq_dist, dim=1
     )  # gives norm for scalar weight
-    # ineq_dist_avg = torch.linalg.vector_norm(ineq_dist, dim=0)
-    # ineq_dist_cat = torch.zeros(6)
-
-    # ineq_dist_cat[0] = torch.mean(ineq_dist_avg.detach()[0 : 2 * utils.N - 2])
-    # ineq_dist_cat[1] = torch.mean(
-    #     ineq_dist_avg.detach()[2 * utils.N - 2 : 4 * utils.N - 4]
-    # )
-    # ineq_dist_cat[2] = torch.mean(
-    #     ineq_dist_avg.detach()[4 * utils.N - 4 : 4 * utils.N - 2]
-    # )
-    # ineq_dist_cat[3] = torch.mean(ineq_dist_avg.detach()[4 * utils.N - 2 : 4 * utils.N])
-    # ineq_dist_cat[4] = torch.mean(ineq_dist_avg.detach()[4 * utils.N : 6 * utils.N])
-    # ineq_dist_cat[5] = torch.mean(ineq_dist_avg.detach()[6 * utils.N : 7 * utils.N])
 
     soft_weight = args["softWeight"]
 
@@ -790,13 +776,6 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
                 soft_weight_new,
             )
 
-    # return (
-    #     obj_cost + soft_weight * ineq_cost,
-    #     soft_weight,
-    #     obj_cost,
-    #     ineq_cost,
-    #     ineq_dist_cat,
-    # )
     total_loss = obj_cost + soft_weight * ineq_cost
     return total_loss, soft_weight
 
