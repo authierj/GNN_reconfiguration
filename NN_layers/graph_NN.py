@@ -15,6 +15,7 @@ class GCN(nn.Module):
 
         assert self.layers >= 2, "the minimum number of layers for the GCN is 2"
 
+
     def forward(self, x, edge_index):
 
         x = self.first_conv(x, edge_index)
@@ -286,6 +287,3 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         # no residual connection for the first layer due to the change of dimension
 
         return h, e
-
-
-

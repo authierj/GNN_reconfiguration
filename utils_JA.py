@@ -106,7 +106,8 @@ class Utils:
     def eq_resid(self, z, zc):
         # should be zero, but implementing it as a debugging step
         # pl, ql = self.decompose_vars_x(x)
-        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(z)
+        zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf = self.decompose_vars_z(
+            z)
         zij, ylast, qij_nosw, pg, qg = self.decompose_vars_zc(zc)
 
         qij = torch.hstack((qij_nosw, qij_sw))

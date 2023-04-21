@@ -7,7 +7,6 @@ from matplotlib.ticker import FormatStrFormatter
 from IPython.display import set_matplotlib_formats
 import os
  
-
 set_matplotlib_formats("retina")
 
 list_names = [
@@ -93,7 +92,6 @@ def loss_cruve(train_losses, valid_losses, args):
     if os.path.isfile(plot_path):
         os.remove(plot_path)
     fig1.savefig(plot_path)
-
 
 def hyperparam_plot(train_losses, valid_losses, param_name, param_values):
 
