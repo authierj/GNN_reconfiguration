@@ -5,7 +5,6 @@ import pickle
 import argparse
 from torch_geometric.loader import DataLoader
 import time
-import torch.autograd.profiler as profiler
 
 # Local
 from utils_JA import Utils
@@ -14,7 +13,7 @@ from NN_layers import readout
 from datasets.graphdataset import *
 from NN_models.classical_gnn import GCN_Global_MLP_reduced_model, GCN_local_MLP
 from NN_models.gated_switch import GatedSwitchGNN_globalMLP, GatedSwitchGNN
-
+import NN_models.classical_gnn as classical_gnn
 
 def main(args):
     """
@@ -64,6 +63,7 @@ def main(args):
     # model = GCN_Global_MLP_reduced_model(args, utils.N, output_dim)
     model = GCN_local_MLP(args, utils.N, output_dim)
     # model = GatedSwitchGNN(args, utils.N, output_dim)
+    model = getattr(classical_gnn, args["model"])(args,utils.N, output_dim)
 
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
@@ -173,7 +173,7 @@ def train(model, optimizer, criterion, loader, args, utils):
         z_hat, zc_hat = model(data, utils)
         # time_end = time.time()
         # total_time += time_end - time_start
-        
+
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -191,7 +191,7 @@ def train(model, optimizer, criterion, loader, args, utils):
         optimizer.zero_grad()
         # time_end = time.time()
         # opt_time += time_end - time_start
-        
+
         dispatch_dist = utils.opt_dispatch_dist_JA(
             z_hat.detach(), zc_hat.detach(), data.y.detach()
         )
@@ -262,6 +262,18 @@ def test_or_validate(model, criterion, loader, args, utils):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--model",
+        default="GCN_local_MLP",
+        choices=[
+            "GCN_Global_MLP_reduced_model",
+            "GCN_local_MLP",
+            "GatedSwitchGNN_globalMLP",
+            "GatedSwitchGNN",
+        ],
+        help="model to train",
+    )
     parser.add_argument(
         "--network",
         type=str,
