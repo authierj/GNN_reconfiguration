@@ -1,5 +1,5 @@
 __pycache__/*
-**/__pycache__/
+*/__pycache__/
 .vscode/*
 *.m~
 *.DS_Store
@@ -7,7 +7,7 @@ dataprofiles/ISONE_hourlyload/.DS_Store
 dataprofiles/HawaiiData/.DS_Store
 dataprofiles/.DS_Store
 .idea/
-results/
+results/*
 plots/*
 datasets/*
 
