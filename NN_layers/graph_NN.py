@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv, GraphConv
 import torch.nn.functional as F
 from torch import nn
 
@@ -7,9 +7,9 @@ from torch import nn
 class GCN(nn.Module):
     def __init__(self, args):
         super().__init__()
-        torch.manual_seed(12)
+        #torch.manual_seed(12)
         self.first_conv = GCNConv(args["inputFeatures"], args["hiddenFeatures"])
-        self.conv = GCNConv(args["hiddenFeatures"], args["hiddenFeatures"])
+        self.conv = GCNConv(args["hiddenFeatures"], int(args["hiddenFeatures"]))
         self.dropout = args["dropout"]
         self.layers = args["numLayers"]
 
@@ -28,6 +28,30 @@ class GCN(nn.Module):
 
         return x
 
+
+class GNN(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        #torch.manual_seed(12)
+        self.first_conv = GraphConv(args["inputFeatures"], args["hiddenFeatures"], aggr="max")
+        self.conv = GraphConv(args["hiddenFeatures"], args["hiddenFeatures"], aggr="max")
+        self.dropout = args["dropout"]
+        self.layers = args["numLayers"]
+
+        assert self.layers >= 2, "the minimum number of layers for the GNN is 2"
+
+    def forward(self, x, edge_index):
+
+        x = self.first_conv(x, edge_index)
+        x = x.relu()
+        # x = F.dropout(x, p=self.dropout, training=self.training)
+
+        for i in range(self.layers - 1):
+            x = self.conv(x, edge_index)
+            x = x.relu()
+            # x = F.dropout(x, p=self.dropout, training=self.training)
+
+        return x
 
 class GatedSwitchesLayer(nn.Module):
     """Configurable GNN Layer

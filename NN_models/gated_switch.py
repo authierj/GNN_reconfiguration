@@ -137,6 +137,12 @@ class GatedSwitchGNN(nn.Module):
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
 
+        # print(data.x_mod.device)
+        # print(v.device)
+        # print(p_flow.device)
+        # print(graph_topo.device)
+        # print(data.Incidence.device)
+
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
             data.x_mod, v, p_flow, graph_topo, data.Incidence
         )
@@ -153,8 +159,9 @@ class GatedSwitchGNN_globalMLP(nn.Module):
     def __init__(self, args, N, output_dim):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
-        self.MLP = GlobalMLP_reduced(args, N, output_dim)
+        self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
         self.completion_step = args["useCompl"]
+        self.device = args["device"]
 
     def forward(self, data, utils):
 
@@ -178,7 +185,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         topology = utils.physic_informed_rounding(
             p_switch.flatten(), n_switch_per_batch
         )
-        graph_topo = torch.ones((200, utils.M)).bool()
+        graph_topo = torch.ones((200, utils.M), device=self.device).bool()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         v = SMLP_out[:, utils.M : utils.M + utils.N]
