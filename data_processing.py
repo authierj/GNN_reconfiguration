@@ -20,8 +20,8 @@ class OPTreconfigure:
         qgLow = cases[4]
         qgUpp = cases[5]
 
-        # network = data['network_33_data'][0, 0]
-        network = data["network_4_data"][0, 0]
+        network = data['network_33_data'][0, 0]
+        # network = data["network_4_data"][0, 0]
 
         SBase = np.squeeze(network[0])
         VBase = np.squeeze(network[1])
@@ -47,6 +47,8 @@ class OPTreconfigure:
 
         self.swInds = swInds  # doesn't need to be a tensor bc an index
         self.numSwitches = numSwitches.item(0)
+
+        edges = network["bi_edge_index"] - 1
 
         ######################## Data processing ###############################
         interim = list(set(np.arange(0, M)) ^ set(self.swInds - 1))  # non-switch lines
@@ -86,6 +88,27 @@ class OPTreconfigure:
         self.mEnd = mEnd_tensor
         self.A = (mStart_tensor - mEnd_tensor).to_dense()
         self.Aabs = mStart_tensor + mEnd_tensor
+
+        self.D_inv = torch.diag(1/torch.sum(torch.abs(self.A), 1))
+
+        switch_indexes_bi = np.concatenate((swInds, swInds + M)) - 1 
+        switches = edges[:, switch_indexes_bi]
+        edges_without_switches = np.delete(edges, switch_indexes_bi, axis=1)
+
+        # Adjacency and Switch-Adjacency matrices
+        Adj = np.zeros((N, N))
+        S = np.zeros((N, N))
+
+        Adj[edges_without_switches[0, :], edges_without_switches[1, :]] = 1
+        S[switches[0, :], switches[1, :]] = 1
+
+        # Convert to torch
+        switches = torch.from_numpy(switches).long()
+        edges_without_switches = torch.from_numpy(edges_without_switches).long()
+        Adj = torch.from_numpy(Adj).bool()
+        self.Adj =  Adj
+        S = torch.from_numpy(S).bool()
+        self.S = S
 
         # Pytorch want each row a case, each column a node
         # randomize the data so different cases appear in training, validation, testing

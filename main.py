@@ -13,7 +13,8 @@ import NN_layers.graph_NN as graph_extraction
 from utils_JA import Utils
 from utils_JA import xgraph_xflatten
 import NN_layers.readout as readout_layer
-from datasets.graphdataset import GraphDataSet
+from datasets.graphdataset import *
+
 from plots import *
 
 
@@ -29,7 +30,10 @@ def main(args):
 
     utils = Utils(data)
 
-    graph_dataset = GraphDataSet(root="datasets/node4")
+    # graph_dataset = GraphDataSet(root="datasets/" + args["network"])
+    graph_dataset = GraphDataSet(root="datasets/" + args["network"])
+
+    # TODO change to arguments so that we can use different networks directly
     train_graphs = graph_dataset[0:3200]
     valid_graphs = graph_dataset[3200:3600]
     test_graphs = graph_dataset[3600:4000]
@@ -39,30 +43,17 @@ def main(args):
     valid_loader = DataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
-    output_features_GNN = args["outputFeatures"]
-    dropout = args["dropout"]
-
-    GNN = getattr(graph_extraction, args["GNN"])(
-        input_features=2,
-        hidden_channels=args["hiddenFeatures"],
-        output_classes=output_features_GNN,
-        layers=args["numLayers"],
-        dropout=dropout,
+    GNN = getattr(graph_extraction, args["GNN"])(args)
+    
+    readout = getattr(readout_layer, args["readout"])(
+        args, n_nodes=data.N, output_dim=data.zdim
     )
 
-    # readout = getattr(readout_layer, args["readout"])(
-    #     input_features=output_features_GNN * data.M,
-    #     hidden_features=output_features_GNN * data.M,
-    #     output_classes=data.zdim,
-    #     layers=2,
-    #     dropout=dropout,
+    # readout = MLP(
+    #     [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
     # )
 
-    readout = MLP(
-        [output_features_GNN * data.M, 2*output_features_GNN * data.M, data.zdim], dropout=dropout, norm=None
-    )
-
-    model = MyEnsemble(GNN, readout, completion_step=args["useCompl"])
+    model = PyGDecodeEncode(GNN, readout, completion_step=args["useCompl"])
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc
 
@@ -70,6 +61,9 @@ def main(args):
     train_losses = np.zeros(num_epochs)
     valid_losses = np.zeros(num_epochs)
     for i in range(num_epochs):
+        if i==100:
+            print(i)
+
         train_losses[i] = train(model, optimizer, cost_fnc, train_loader, args, utils)
         valid_losses[i] = test_or_validate(model, cost_fnc, valid_loader, args, utils)
 
@@ -81,8 +75,8 @@ def main(args):
         description = "_".join((args["network"], args["GNN"], args["readout"]))
         torch.save(model.state_dict, os.path.join("trained_nn", description))
 
-    loss_cruve(train_losses, valid_losses, args)
-
+    # loss_cruve(train_losses, valid_losses, args)
+    return train_losses, valid_losses
 
 def train(model, optimizer, criterion, loader, args, utils):
     model.train()
@@ -102,7 +96,7 @@ def train(model, optimizer, criterion, loader, args, utils):
             utils,
             args,
             data.idx,
-            train=True
+            train=True,
         )
 
         train_loss.sum().backward()
@@ -118,7 +112,6 @@ def test_or_validate(model, criterion, loader, args, utils):
 
     test_loss_total = 0
     for data in loader:
-        
         with torch.no_grad():
             z_hat, zc_hat, x_input = model(data.x, data.edge_index, utils=utils)
 
@@ -133,7 +126,7 @@ def test_or_validate(model, criterion, loader, args, utils):
             utils,
             args,
             data.idx,
-            train=False
+            train=False,
         )
         test_loss_total += test_loss.detach().mean()
 
@@ -262,7 +255,7 @@ def total_loss(x, z, zc, criterion, utils, args, idx, train):
     return obj_cost + soft_weight * ineq_cost, soft_weight
 
 
-class MyEnsemble(nn.Module):
+class PyGDecodeEncode(nn.Module):
     def __init__(self, GNN, readout, completion_step):
         super().__init__()
         self.GNN = GNN
@@ -283,7 +276,27 @@ class MyEnsemble(nn.Module):
             z, zc = utils.complete(x_input, z)
             zc_tensor = torch.stack(list(zc), dim=0)
             return z, zc_tensor, x_input
+        else:
+            return utils.process_output(x_input, out), x_input
 
+        out = self.readout(x_nn)
+        z = utils.output_layer(out)
+
+class DecodeEncode(nn.Module):
+    def __init__(self, GNN, readout, completion_step):
+        self.GNN = GNN
+        self.readout = readout
+        self.completion_step = completion_step
+    
+    def forward(self, data):
+        x, s = self.GNN(data.x_mod, data.A, data.S)
+
+        switches_nodes = torch.is_nonzero(data.S)
+        
+        if self.completion_step:
+            z, zc = utils.complete(x_input, z)
+            zc_tensor = torch.stack(list(zc), dim=0)
+            return z, zc_tensor, x_input
         else:
             return utils.process_output(x_input, out), x_input
 
@@ -294,27 +307,41 @@ if __name__ == "__main__":
     parser.add_argument(
         "--network",
         type=str,
-        default="node4",
+        default="baranwu33",
         choices=["node4", "IEEE13", "baranwu33"],
         help="network identification",
     )
     parser.add_argument(
-        "--epochs", type=int, default=100, help="number of neural network epochs"
+        "--epochs", type=int, default=500, help="number of neural network epochs"
     )
     parser.add_argument(
         "--batchSize", type=int, default=200, help="training batch size"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-4, help="neural network learning rate"
+        "--lr", type=float, default=1e-3, help="neural network learning rate"
     )
     parser.add_argument(
-        "--GNN", type=str, default="GCN", help="model for feature extraction layers"
+        "--GNN",
+        type=str,
+        default="GCN",
+        choices=["GCN", "GatedSwitchesEncoder"],
+        help="model for feature extraction layers",
     )
     parser.add_argument(
-        "--readout", type=str, default="GlobalMLP", help="model for readout layer"
+        "--readout",
+        type=str,
+        default="GlobalMLP",
+        choices=["GlobalMLP", "LocalMLPs"],
+        help="model for readout layer",
     )
     parser.add_argument(
-        "--numLayers", type=int, default=2, help="the number of layers in the GNN"
+        "--numLayers", type=int, default=4, help="the number of layers in the GNN"
+    )
+    parser.add_argument(
+        "--inputFeatures",
+        type=int,
+        default=2,
+        help="number of features in the input layer of the GNN",
     )
     parser.add_argument(
         "--hiddenFeatures",
@@ -412,7 +439,14 @@ if __name__ == "__main__":
         default=False,
         help="determine if the trained model will be saved",
     )
-    parser.add_argument("--dropout", type=float, default=0.5)
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument(
+        "--aggregation", type=str, default="sum", choices=["sum", "mean", "max"]
+    )
+    parser.add_argument(
+        "--norm", type=str, default="batch", choices=["batch", "layer", "none"]
+    )
+    parser.add_argument("--gated", type=bool, default=True)
 
     args = parser.parse_args()
     main(vars(args))

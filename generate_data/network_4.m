@@ -234,7 +234,8 @@ case_data = cell2struct(caseValueSet', caseKeySet);
 model_paramzed = reconfigure_optimizer.get_paramzed_model(network_4_data);
 res = reconfigure_optimizer.solve_case(model_paramzed, network_4_data, case_data);
 
-for ind = total_cases+1:total_cases+length(col_delete) % 1:total_cases+length(col_delete)
+for ind = 1:total_cases+length(col_delete) % 1:total_cases+length(col_delete)
+
     % each column is a new case
     if find(ind==col_delete)
         continue
@@ -243,8 +244,8 @@ for ind = total_cases+1:total_cases+length(col_delete) % 1:total_cases+length(co
     caseValueSet = {PL(:, ind), QL(:, ind), PGLow(:, ind), PGUpp(:, ind), QGLow(:, ind), QGUpp(:, ind)};
     case_data = cell2struct(caseValueSet', caseKeySet);
 
-    [z_case, zc_case, yaltime_case, solvertime_case, objval_case, error] = reconfigure(network_4_data, case_data);
-    
+    [z_case, zc_case, yij_res_case, yaltime_case, solvertime_case, objval_case, error] = reconfigure(network_4_data, case_data);
+
     if error ~= 0 
         errored = [errored, ind]; % remove these test cases later
     else

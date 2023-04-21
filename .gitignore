@@ -1,4 +1,5 @@
 __pycache__/*
+**/__pycache__/
 .vscode/*
 *.m~
 *.DS_Store
@@ -8,4 +9,5 @@ dataprofiles/.DS_Store
 .idea/
 results/
 plots/*
+datasets/*
 
