@@ -588,6 +588,31 @@ class Utils:
 
         return violated_resid
 
+    def cross_entropy_loss_topology(self, z, y, switch_mask):
+        """
+        cross_entropy_loss_topology returns the cross entropy loss between the topology chosen by the neural network and the reference topology
+
+        args:
+            z_hat: the output of the neural network
+            y: the reference solution
+            switch_mask: the mask for the switches
+
+        return:
+            loss: the cross entropy loss between the topology chosen by the neural network and the reference topology
+        """
+
+        _, opt_y_no_last, _, _, _, _, _, _, _ = self.decompose_vars_z(
+            y[:, : self.zrdim]
+        )
+        _, y_last, _, _, _ = self.decompose_vars_zc(y[:, self.zrdim : :])
+
+        y = torch.cat((opt_y_no_last, y_last.view(-1, 1)), dim=1)
+        _, _, topology = self.decompose_vars_z_JA(z)
+        switch_decision = topology[switch_mask].reshape_as(y)
+
+        criterion = nn.BCELoss(reduction="sum")
+        return criterion(switch_decision, y)
+
     def opt_topology_dist_JA(self, z, y, switch_mask):
         """
         opt_dispatch_dist_JA returns the squared distance between the topology chosen by the neural network and the reference topology
@@ -751,19 +776,6 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
     ineq_cost = torch.linalg.vector_norm(
         ineq_dist, dim=1
     )  # gives norm for scalar weight
-    # ineq_dist_avg = torch.linalg.vector_norm(ineq_dist, dim=0)
-    # ineq_dist_cat = torch.zeros(6)
-
-    # ineq_dist_cat[0] = torch.mean(ineq_dist_avg.detach()[0 : 2 * utils.N - 2])
-    # ineq_dist_cat[1] = torch.mean(
-    #     ineq_dist_avg.detach()[2 * utils.N - 2 : 4 * utils.N - 4]
-    # )
-    # ineq_dist_cat[2] = torch.mean(
-    #     ineq_dist_avg.detach()[4 * utils.N - 4 : 4 * utils.N - 2]
-    # )
-    # ineq_dist_cat[3] = torch.mean(ineq_dist_avg.detach()[4 * utils.N - 2 : 4 * utils.N])
-    # ineq_dist_cat[4] = torch.mean(ineq_dist_avg.detach()[4 * utils.N : 6 * utils.N])
-    # ineq_dist_cat[5] = torch.mean(ineq_dist_avg.detach()[6 * utils.N : 7 * utils.N])
 
     soft_weight = args["softWeight"]
 
@@ -789,13 +801,6 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
                 soft_weight_new,
             )
 
-    # return (
-    #     obj_cost + soft_weight * ineq_cost,
-    #     soft_weight,
-    #     obj_cost,
-    #     ineq_cost,
-    #     ineq_dist_cat,
-    # )
     total_loss = obj_cost + soft_weight * ineq_cost
     return total_loss, soft_weight
 

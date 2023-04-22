@@ -68,7 +68,8 @@ def main(args):
     if args["saveModel"]:
         save_dir = os.path.join(
             "results",
-            args["model"],"jump_lr",
+            args["model"],
+            "jump_lr",
             "_".join(
                 [
                     f'{args["numLayers"]}',
@@ -132,7 +133,9 @@ def main(args):
         else:
             stats = train_epoch_stats
 
-        if i % args["resultsSaveFreq"] == 0 and (args["saveModel"] or args["saveAllStats"]):
+        if i % args["resultsSaveFreq"] == 0 and (
+            args["saveModel"] or args["saveAllStats"]
+        ):
             torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
             with open(file, "wb") as f:
                 # np.save(f, stats)
@@ -150,7 +153,8 @@ def main(args):
     if args["saveModel"]:
         return save_dir
     else:
-        return 
+        return
+
 
 def train(model, optimizer, criterion, loader, args, utils):
     """
@@ -191,6 +195,10 @@ def train(model, optimizer, criterion, loader, args, utils):
             utils.A,
             train=True,
         )
+        if args["topoLoss"]:
+            train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
+                z_hat, data.y, data.switch_mask
+            )
 
         # time_start = time.time()
         train_loss.sum().backward()
@@ -270,7 +278,12 @@ def test_or_validate(model, criterion, loader, args, utils):
             z_hat.detach(), data.y.detach(), data.switch_mask.detach()
         )
         eps_converge = args["corrEps"]
-        dict_agg(epoch_stats, 'valid_loss', torch.sum(valid_loss).detach().cpu().numpy()/size, op='sum')
+        dict_agg(
+            epoch_stats,
+            "valid_loss",
+            torch.sum(valid_loss).detach().cpu().numpy() / size,
+            op="sum",
+        )
         if args["saveModel"]:
             # fmt: off
             dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
@@ -317,7 +330,7 @@ if __name__ == "__main__":
         "--batchSize", type=int, default=200, help="training batch size"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-4, help="neural network learning rate"
+        "--lr", type=float, default=1e-3, help="neural network learning rate"
     )
     parser.add_argument(
         "--numLayers", type=int, default=4, help="the number of layers in the GNN"
@@ -373,7 +386,13 @@ if __name__ == "__main__":
         default=50,
         help="how frequently (in terms of number of epochs) to save stats to file",
     )
-    parser.add_argument("--dropout", type=float, default=0)
+    parser.add_argument(
+        "--topoLoss", action="store_true", help="whether to use topology loss"
+    )
+    parser.add_argument(
+        "--topoWeight", type=float, default=100, help="topology loss weight"
+    )
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--aggregation", type=str, default="max", choices=["sum", "mean", "max"]
     )

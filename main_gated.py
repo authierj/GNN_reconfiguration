@@ -184,7 +184,8 @@ def train(model, optimizer, criterion, loader, args, utils):
             utils.A,
             train=True,
         )
-
+        if args["topoLoss"]:
+            train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(z_hat, data.y, data.switch_mask)
         # time_start = time.time()
         train_loss.sum().backward()
         optimizer.step()
@@ -374,7 +375,13 @@ if __name__ == "__main__":
         default=50,
         help="how frequently (in terms of number of epochs) to save stats to file",
     )
-    parser.add_argument("--dropout", type=float, default=0)
+    parser.add_argument(
+        "--topoLoss", action="store_true", help="whether to use topology loss"
+    )
+    parser.add_argument(
+        "--topoWeight", type=float, default=100, help="topology loss weight"
+    )
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--aggregation", type=str, default="max", choices=["sum", "mean", "max"]
     )
