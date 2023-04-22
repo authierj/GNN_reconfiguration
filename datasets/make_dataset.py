@@ -7,12 +7,12 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], os.pardir, os.pardir))
 from data_processing import OPTreconfigure
 
-network_ID = "node4"  #'baranwu33'
+network_ID = "baranwu33"  # "node4"
 # dataflag='partial'
 dataflag = "full"
 
-# filename = 'casedata_33_rand_rengenUniform.mat'
-filename = "casedata.mat"
+filename = 'casedata_33_uniform_extrasw.mat'
+# filename = "casedata_graph.mat"
 
 torch.set_default_dtype(torch.float64)
 filepath = os.path.join("datasets", network_ID, "raw", filename)

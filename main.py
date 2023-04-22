@@ -14,7 +14,6 @@ from utils_JA import Utils
 from utils_JA import xgraph_xflatten
 import NN_layers.readout as readout_layer
 from datasets.graphdataset import *
-
 from plots import *
 
 
@@ -42,6 +41,7 @@ def main(args):
     train_loader = DataLoader(train_graphs, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
+
 
     GNN = getattr(graph_extraction, args["GNN"])(args)
     
@@ -78,6 +78,7 @@ def main(args):
     # loss_cruve(train_losses, valid_losses, args)
     return train_losses, valid_losses
 
+
 def train(model, optimizer, criterion, loader, args, utils):
     model.train()
 
@@ -112,6 +113,7 @@ def test_or_validate(model, criterion, loader, args, utils):
 
     test_loss_total = 0
     for data in loader:
+
         with torch.no_grad():
             z_hat, zc_hat, x_input = model(data.x, data.edge_index, utils=utils)
 
@@ -222,6 +224,7 @@ def grad_steps(x, z, zc, args, utils, idx, plotFlag):
     else:
         return z, zc
 
+
 def total_loss(x, z, zc, criterion, utils, args, idx, train):
 
     obj_cost = criterion(z, zc)
@@ -276,11 +279,10 @@ class PyGDecodeEncode(nn.Module):
             z, zc = utils.complete(x_input, z)
             zc_tensor = torch.stack(list(zc), dim=0)
             return z, zc_tensor, x_input
+
         else:
             return utils.process_output(x_input, out), x_input
 
-        out = self.readout(x_nn)
-        z = utils.output_layer(out)
 
 class DecodeEncode(nn.Module):
     def __init__(self, GNN, readout, completion_step):
@@ -293,12 +295,8 @@ class DecodeEncode(nn.Module):
 
         switches_nodes = torch.is_nonzero(data.S)
         
-        if self.completion_step:
-            z, zc = utils.complete(x_input, z)
-            zc_tensor = torch.stack(list(zc), dim=0)
-            return z, zc_tensor, x_input
-        else:
-            return utils.process_output(x_input, out), x_input
+
+
 
 
 if __name__ == "__main__":
