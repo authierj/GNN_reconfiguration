@@ -995,6 +995,8 @@ def default_args():
     defaults["aggregation"] = "max"
     defaults["norm"] = "batch"
     defaults["gated"] = True
+    defaults["topoLoss"] = True
+    defaults["topoWeight"] = 100
 
     return defaults
 

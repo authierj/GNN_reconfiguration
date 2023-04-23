@@ -64,14 +64,31 @@ def main(args):
 
     num_epochs = args["epochs"]
 
-    save_dir = os.path.join(
-        "results",
-        model.__class__.__name__,
-        "_".join(
-            [f'{args["numLayers"]}', f'{args["hiddenFeatures"]}', f'{args["lr"]:.0e}']
-        ),
-    )
-
+    if args["topoLoss"]:
+        save_dir = os.path.join(
+            "results",
+            "topoLoss",
+            model.__class__.__name__,
+            "_".join(
+                [
+                    f'{args["numLayers"]}',
+                    f'{args["hiddenFeatures"]}',
+                    f'{args["lr"]:.0e}',
+                ]
+            ),
+        )
+    else:
+        save_dir = os.path.join(
+            "results",
+            model.__class__.__name__,
+            "_".join(
+                [
+                    f'{args["numLayers"]}',
+                    f'{args["hiddenFeatures"]}',
+                    f'{args["lr"]:.0e}',
+                ]
+            ),
+        )
     i = 0
     while os.path.exists(os.path.join(save_dir, f"v{i}")):
         i += 1
@@ -185,7 +202,9 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
         if args["topoLoss"]:
-            train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(z_hat, data.y, data.switch_mask)
+            train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
+                z_hat, data.y, data.switch_mask
+            )
         # time_start = time.time()
         train_loss.sum().backward()
         optimizer.step()

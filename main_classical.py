@@ -65,11 +65,23 @@ def main(args):
 
     print(args["saveModel"])
 
-    if args["saveModel"]:
+    if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            args["model"],
-            "jump_lr",
+            "physic_informed_topoLoss",
+            model.__class__.__name__,
+            "_".join(
+                [
+                    f'{args["numLayers"]}',
+                    f'{args["hiddenFeatures"]}',
+                    f'{args["lr"]:.0e}',
+                ]
+            ),
+        )
+    else:
+        save_dir = os.path.join(
+            "results",
+            model.__class__.__name__,
             "_".join(
                 [
                     f'{args["numLayers"]}',
@@ -79,15 +91,15 @@ def main(args):
             ),
         )
 
-        i = 0
-        while os.path.exists(os.path.join(save_dir, f"v{i}")):
-            i += 1
-            if i >= 10:
-                print("experiment already ran 10 times")
-                return save_dir
-        save_dir = os.path.join(save_dir, f"v{i}")
-        os.makedirs(save_dir)
-        file = os.path.join(save_dir, "stats.dict")
+    i = 0
+    while os.path.exists(os.path.join(save_dir, f"v{i}")):
+        i += 1
+        if i >= 10:
+            print("experiment already ran 10 times")
+            return save_dir
+    save_dir = os.path.join(save_dir, f"v{i}")
+    os.makedirs(save_dir)
+    file = os.path.join(save_dir, "stats.dict")
 
     stats = {}
     # train and test
