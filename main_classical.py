@@ -81,6 +81,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
+            "sigmoid",
             model.__class__.__name__,
             "_".join(
                 [

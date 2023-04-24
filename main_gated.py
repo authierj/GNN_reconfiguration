@@ -81,6 +81,7 @@ def main(args):
         save_dir = os.path.join(
             "results",
             model.__class__.__name__,
+            "sigmoid",
             "_".join(
                 [
                     f'{args["numLayers"]}',

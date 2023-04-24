@@ -32,9 +32,10 @@ try:
 except AssertionError:
     print("this file is to test the topoLoss!")
     exit()
+args["topoLoss"] = False
 
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir,  "topoLoss_physic_informed.txt")
+filepath = os.path.join(save_dir,  "sigmoid.txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
