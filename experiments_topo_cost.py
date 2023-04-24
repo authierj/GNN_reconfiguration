@@ -34,7 +34,7 @@ except AssertionError:
     exit()
 
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir,  "topoLoss_phys_v2.txt")
+filepath = os.path.join(save_dir,  "topoLoss_sig_phys_v2.txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)

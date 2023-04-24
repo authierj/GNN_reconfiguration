@@ -98,7 +98,7 @@ class GatedSwitchGNN(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
         topology = utils.physic_informed_rounding(
-            SMLP_out[:, 0], n_switches
+            SMLP_out[:, 0].sigmoid(), n_switches
         ) * 0.99 + 1e-3  # num_switches*B
         # topology = SMLP_out[:, 0].sigmoid()
         graph_topo = torch.ones((x.shape[0], utils.M), device=self.device).float()
@@ -180,7 +180,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         SMLP_input = torch.cat((switches.view(200,-1), x.view(200, -1)), axis=1)
         SMLP_out = self.MLP(SMLP_input) #[pij, v, p_switch]
         
-        p_switch = SMLP_out[:, -utils.numSwitches : :]
+        p_switch = SMLP_out[:, -utils.numSwitches : :].sigmoid()
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         topology = utils.physic_informed_rounding(
