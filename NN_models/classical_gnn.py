@@ -31,10 +31,11 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         p_switch = out[:, -utils.numSwitches : :]
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
-        topology = utils.physic_informed_rounding(
-                p_switch.flatten(), n_switch_per_batch
-        )
-        graph_topo = torch.ones((200, utils.M), device=self.device).bool()
+        # topology = utils.physic_informed_rounding(
+        #         p_switch.flatten(), n_switch_per_batch
+        # )
+        topology = p_switch.flatten().sigmoid()
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         v = out[:, utils.M : utils.M + utils.N]
@@ -90,10 +91,11 @@ class GCN_local_MLP(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
-        topology = utils.physic_informed_rounding(
-            SMLP_out[:, 0], n_switch_per_batch
-        )  # num_switches*B
-        graph_topo = torch.ones((200, utils.M)).bool().to(self.device)
+        # topology = utils.physic_informed_rounding(
+        #     SMLP_out[:, 0], n_switch_per_batch
+        # )  # num_switches*B
+        topology = SMLP_out[:, 0].sigmoid()
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
