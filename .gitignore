@@ -12,4 +12,4 @@ results_copy/*
 plots/*
 datasets/baranwu33/*
 datasets/node4/*
-*.log_*
+*.log-*
