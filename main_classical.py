@@ -68,7 +68,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "sig_phys_topoLoss_v2",
+            "sig_phys_topoLoss_SE",
             model.__class__.__name__,
             "_".join(
                 [
@@ -209,9 +209,11 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
         if args["topoLoss"]:
-            train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
-                z_hat, data.y, data.switch_mask
-            )
+            topo_cost = torch.sum(utils.opt_topology_dist_JA(z_hat, data.y, data.switch_mask), axis=1)
+            # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
+            #     z_hat, data.y, data.switch_mask
+            # )
+            train_loss += args["topoWeight"] * topo_cost
 
         # time_start = time.time()
         train_loss.sum().backward()
