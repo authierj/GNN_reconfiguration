@@ -68,7 +68,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "sig_phys_topoLoss_SE",
+            "phys_topoLoss_SE",
             model.__class__.__name__,
             "_".join(
                 [
