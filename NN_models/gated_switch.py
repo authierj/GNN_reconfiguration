@@ -101,8 +101,8 @@ class GatedSwitchGNN(nn.Module):
             SMLP_out[:, 0], n_switches
         ) # num_switches*B
         # topology = SMLP_out[:, 0].sigmoid()
-        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device).float()
-        graph_topo[data.switch_mask] = topology
+        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
+        graph_topo[data.switch_mask] = topology.float()
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[data.switch_mask] = SMLP_out[:, 1]
