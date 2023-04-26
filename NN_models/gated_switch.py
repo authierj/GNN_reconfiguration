@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from NN_layers.graph_NN import GatedSwitchesLayer, FirstGatedSwitchesLayer
 from NN_layers.readout import *
-from utils_JA import modified_sigmoid
+from utils_JA import xgraph_xflatten, Modified_Sigmoid
 
 class GatedSwitchesEncoder(nn.Module):
     """Configurable GNN Encoder"""
