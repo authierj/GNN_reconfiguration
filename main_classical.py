@@ -68,7 +68,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "phys_topoLoss_SE",
+            "phys_test",
             model.__class__.__name__,
             "_".join(
                 [
@@ -81,7 +81,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "sigmoid",
+            "test",
             model.__class__.__name__,
             "_".join(
                 [
@@ -93,14 +93,15 @@ def main(args):
         )
 
     i = 0
-    while os.path.exists(os.path.join(save_dir, f"v{i}")):
-        i += 1
-        if i >= 10:
-            print("experiment already ran 10 times")
-            return save_dir
-    save_dir = os.path.join(save_dir, f"v{i}")
-    os.makedirs(save_dir)
-    file = os.path.join(save_dir, "stats.dict")
+    if args["saveModel"] or args["saveAllStats"]:
+        while os.path.exists(os.path.join(save_dir, f"v{i}")):
+            i += 1
+            if i >= 10:
+                print("experiment already ran 10 times")
+                return save_dir
+        save_dir = os.path.join(save_dir, f"v{i}")
+        os.makedirs(save_dir)
+        file = os.path.join(save_dir, "stats.dict")
 
     stats = {}
     # train and test
@@ -209,7 +210,9 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
         if args["topoLoss"]:
-            topo_cost = torch.sum(utils.opt_topology_dist_JA(z_hat, data.y, data.switch_mask), axis=1)
+            topo_cost = torch.sum(
+                utils.opt_topology_dist_JA(z_hat, data.y, data.switch_mask), axis=1
+            )
             # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
             #     z_hat, data.y, data.switch_mask
             # )
@@ -244,9 +247,13 @@ def train(model, optimizer, criterion, loader, args, utils):
             dict_agg(epoch_stats, 'train_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_max', torch.sum(torch.max(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            test_mean = torch.mean(topology_dist, dim=1)
+            test_max_mean = torch.max(test_mean)
+            if test_max_mean > 0.571429:
+                print("problem")
+            dict_agg(epoch_stats, 'train_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_min', torch.sum(torch.min(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'train_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
         # fmt: on
     # print(f"prediction time: {total_time:.4f}, backprog time: {opt_time:.4f}")
     return epoch_stats
@@ -347,6 +354,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lr", type=float, default=1e-3, help="neural network learning rate"
     )
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--numLayers", type=int, default=4, help="the number of layers in the GNN"
     )
@@ -368,27 +376,6 @@ if __name__ == "__main__":
         default=100,
         help="total weight given to constraint violations in loss",
     )
-    parser.add_argument(
-        "--useAdaptiveWeight",
-        type=bool,
-        default=False,
-        help="whether constraint violation weight is time-varying",
-    )
-    parser.add_argument(
-        "--useVectorWeight",
-        type=bool,
-        default=False,
-        help="whether constraint violation weight is vector",
-    )
-    parser.add_argument(
-        "--adaptiveWeightLr",
-        type=float,
-        default=1e-2,
-        help="constraint violation adaptive weight learning rate",
-    )
-    parser.add_argument(
-        "--useCompl", type=bool, default=True, help="whether to use completion"
-    )
     parser.add_argument("--saveModel", action="store_true")
     parser.add_argument(
         "--saveAllStats",
@@ -407,54 +394,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--topoWeight", type=float, default=100, help="topology loss weight"
     )
-    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--aggregation", type=str, default="max", choices=["sum", "mean", "max"]
     )
     parser.add_argument(
         "--norm", type=str, default="batch", choices=["batch", "layer", "none"]
     )
-
     parser.add_argument("--gated", type=bool, default=False)
-
-    parser.add_argument(
-        "--useTrainCorr",
-        type=bool,
-        default=False,
-        help="whether to use correction during training",
-    )
-    parser.add_argument(
-        "--useTestCorr",
-        type=bool,
-        default=False,
-        help="whether to use correction during testing",
-    )
-    parser.add_argument(
-        "--corrTrainSteps",
-        type=int,
-        default=5,
-        help="number of correction steps during training",
-    )
-    parser.add_argument(
-        "--corrTestMaxSteps",
-        type=int,
-        default=5,
-        help="max number of correction steps during testing",
-    )
     parser.add_argument(
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--corrLr",
-        type=float,
-        default=1e-4,
-        help="learning rate for correction procedure",
-    )
-    parser.add_argument(
-        "--corrMomentum",
-        type=float,
-        default=0.5,
-        help="momentum for correction procedure",
+        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig"]
     )
 
     args = parser.parse_args()

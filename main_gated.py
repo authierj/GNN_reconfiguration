@@ -338,6 +338,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lr", type=float, default=1e-3, help="neural network learning rate"
     )
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--numLayers", type=int, default=4, help="the number of layers in the GNN"
     )
@@ -359,27 +360,6 @@ if __name__ == "__main__":
         default=100,
         help="total weight given to constraint violations in loss",
     )
-    parser.add_argument(
-        "--useAdaptiveWeight",
-        type=bool,
-        default=False,
-        help="whether constraint violation weight is time-varying",
-    )
-    parser.add_argument(
-        "--useVectorWeight",
-        type=bool,
-        default=False,
-        help="whether constraint violation weight is vector",
-    )
-    parser.add_argument(
-        "--adaptiveWeightLr",
-        type=float,
-        default=1e-2,
-        help="constraint violation adaptive weight learning rate",
-    )
-    parser.add_argument(
-        "--useCompl", type=bool, default=True, help="whether to use completion"
-    )
     parser.add_argument("--saveModel", action="store_true")
     parser.add_argument(
         "--saveAllStats",
@@ -398,54 +378,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--topoWeight", type=float, default=100, help="topology loss weight"
     )
-    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--aggregation", type=str, default="max", choices=["sum", "mean", "max"]
     )
     parser.add_argument(
         "--norm", type=str, default="batch", choices=["batch", "layer", "none"]
     )
-
-    parser.add_argument("--gated", type=bool, default=True)
-
-    parser.add_argument(
-        "--useTrainCorr",
-        type=bool,
-        default=False,
-        help="whether to use correction during training",
-    )
-    parser.add_argument(
-        "--useTestCorr",
-        type=bool,
-        default=False,
-        help="whether to use correction during testing",
-    )
-    parser.add_argument(
-        "--corrTrainSteps",
-        type=int,
-        default=5,
-        help="number of correction steps during training",
-    )
-    parser.add_argument(
-        "--corrTestMaxSteps",
-        type=int,
-        default=5,
-        help="max number of correction steps during testing",
-    )
+    parser.add_argument("--gated", type=bool, default=False)
     parser.add_argument(
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--corrLr",
-        type=float,
-        default=1e-4,
-        help="learning rate for correction procedure",
-    )
-    parser.add_argument(
-        "--corrMomentum",
-        type=float,
-        default=0.5,
-        help="momentum for correction procedure",
+        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig"]
     )
 
     args = parser.parse_args()
