@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from NN_layers.graph_NN import GatedSwitchesLayer, FirstGatedSwitchesLayer
 from NN_layers.readout import *
-
+from utils_JA import modified_sigmoid
 
 class GatedSwitchesEncoder(nn.Module):
     """Configurable GNN Encoder"""
@@ -69,8 +69,13 @@ class GatedSwitchGNN(nn.Module):
         self.CMLP = CMLP(
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
-        self.completion_step = args["useCompl"]
         self.device = args["device"]
+        if args["switch_activation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switch_activation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
 
     def forward(self, data, utils):
 
@@ -97,8 +102,11 @@ class GatedSwitchGNN(nn.Module):
         SMLP_out = self.SMLP(
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
+        
+        p_switch = self.switch_activation(SMLP_out[:, 0])
+
         topology = utils.physic_informed_rounding(
-            SMLP_out[:, 0], n_switches
+            p_switch, n_switches
         ) # num_switches*B
         # topology = SMLP_out[:, 0].sigmoid()
         graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
@@ -163,6 +171,12 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
         self.completion_step = args["useCompl"]
         self.device = args["device"]
+        if args["switch_activation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switch_activation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
 
     def forward(self, data, utils):
 
@@ -180,7 +194,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         SMLP_input = torch.cat((switches.view(200,-1), x.view(200, -1)), axis=1)
         SMLP_out = self.MLP(SMLP_input) #[pij, v, p_switch]
         
-        p_switch = SMLP_out[:, -utils.numSwitches : :]
+        p_switch = self.switch_activation(SMLP_out[:, -utils.numSwitches : :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         topology = utils.physic_informed_rounding(
