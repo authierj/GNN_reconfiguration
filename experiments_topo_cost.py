@@ -22,10 +22,12 @@ parser.add_argument(
     ],
     help="model to train",
 )
+parser.add_argument(
+        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig"]
+)
 
 batch_args = vars(parser.parse_args())
 args = default_args()
-
 
 try:
     assert args["topoLoss"] 
@@ -39,8 +41,9 @@ filepath = os.path.join(save_dir,  "phys_topoLoss_SE.txt")
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-num_runs = 10
+num_runs = 3
 args["model"] = batch_args["model"]
+args["switchActivation"] = batch_args["switchActivation"]
 
 if os.path.exists(filepath):
     print("this file already exists and will be completed with new results")
