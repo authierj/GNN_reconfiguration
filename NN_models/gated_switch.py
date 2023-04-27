@@ -70,9 +70,9 @@ class GatedSwitchGNN(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
-        if args["switch_activation"] == "sig":
+        if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
-        elif args["switch_activation"] == "mod_sig":
+        elif args["switchActivation"] == "mod_sig":
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
@@ -171,9 +171,9 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
         self.completion_step = args["useCompl"]
         self.device = args["device"]
-        if args["switch_activation"] == "sig":
+        if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
-        elif args["switch_activation"] == "mod_sig":
+        elif args["switchActivation"] == "mod_sig":
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()

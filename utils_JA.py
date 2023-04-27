@@ -797,28 +797,6 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
 
     soft_weight = args["softWeight"]
 
-    if train and args["useAdaptiveWeight"]:
-        if args["useVectorWeight"]:
-            soft_weight_new = (
-                soft_weight + args["adaptiveWeightLr"] * ineq_dist.detach()
-            )
-            return (
-                obj_cost
-                + torch.sum(
-                    (soft_weight + args["adaptiveWeightLr"] * ineq_dist) * ineq_dist, 1
-                ),
-                soft_weight_new,
-            )
-        else:
-            soft_weight_new = (
-                soft_weight + args["adaptiveWeightLr"] * ineq_cost.detach()
-            )
-            return (
-                obj_cost
-                + ((soft_weight + args["adaptiveWeightLr"] * ineq_cost) * ineq_cost),
-                soft_weight_new,
-            )
-
     total_loss = obj_cost + soft_weight * ineq_cost
     return total_loss, soft_weight
 

@@ -15,9 +15,9 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         self.GNN = GCN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
         self.device = args["device"]
-        if args["switch_activation"] == "sig":
+        if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
-        elif args["switch_activation"] == "mod_sig":
+        elif args["switchActivation"] == "mod_sig":
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
@@ -71,9 +71,9 @@ class GCN_local_MLP(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
-        if args["switch_activation"] == "sig":
+        if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
-        elif args["switch_activation"] == "mod_sig":
+        elif args["switchActivation"] == "mod_sig":
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
@@ -166,9 +166,9 @@ class GNN_global_MLP(nn.Module):
         self.GNN = GNN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
         self.device = args["device"]
-        if args["switch_activation"] == "sig":
+        if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
-        elif args["switch_activation"] == "mod_sig":
+        elif args["switchActivation"] == "mod_sig":
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
@@ -217,9 +217,9 @@ class GNN_local_MLP(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
-        if args["switch_activation"] == "sig":
+        if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
-        elif args["switch_activation"] == "mod_sig":
+        elif args["switchActivation"] == "mod_sig":
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()

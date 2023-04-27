@@ -241,16 +241,12 @@ def train(model, optimizer, criterion, loader, args, utils):
             dict_agg(epoch_stats, 'train_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats, 'train_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats,'train_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
-            test_mean = torch.mean(topology_dist, dim=1)
-            test_max_mean = torch.max(test_mean)
-            if test_max_mean > 0.571429:
-                print("problem")
+            dict_agg(epoch_stats, 'train_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'train_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
@@ -311,15 +307,15 @@ def test_or_validate(model, criterion, loader, args, utils):
             dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats, 'valid_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats,'valid_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_max', torch.sum(torch.max(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_min', torch.sum(torch.min(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
     return epoch_stats
 
@@ -405,7 +401,7 @@ if __name__ == "__main__":
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig"]
+        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig", "None"]
     )
 
     args = parser.parse_args()
