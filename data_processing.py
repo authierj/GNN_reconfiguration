@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import scipy.io as spio
 import scipy.sparse as sp
-from setup import *
 from torch_geometric.data import Data
 
 
