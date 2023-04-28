@@ -11,7 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["GCN_local_MLP_lr_test"]
+    exp_names = ["supervised_GatedSwitchGNN"]
 
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
@@ -65,7 +65,8 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("lr: ") : line.find(", run")]
+                        exp_nn = line[line.find("supervised") : line.find("GCN")-1]
+                        # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
 
@@ -103,6 +104,9 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"], op="sum")
+                        t_max = stats_dict["train_topology_error_max"]
+                        dict_agg(exp_stats, 'T_topology_max', stats_dict["train_topology_error_max"], op="sum")
+                        dict_agg(exp_stats, 'T_topology_min', stats_dict["train_topology_error_min"], op="sum")
                         dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
@@ -177,8 +181,8 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     )
     plt.fill_between(
         x=x,
-        y1=-exp_stats["T_loss_var"] + exp_stats["T_loss"] / run_counter,
-        y2=exp_stats["T_loss_var"] + exp_stats["T_loss"] / run_counter,
+        y1=-np.sqrt(exp_stats["T_loss_var"]) + exp_stats["T_loss"] / run_counter,
+        y2=np.sqrt(exp_stats["T_loss_var"]) + exp_stats["T_loss"] / run_counter,
         color=f"C{exp_counter}",
         alpha=0.2,
     )
@@ -187,11 +191,13 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.plot(
         exp_stats["V_loss"] / run_counter,
         color=f"C{exp_counter}",
+        label=current_nn,
     )
+    plt.ylim([5*1e0,1e4])
     plt.fill_between(
         x=x,
-        y1=-exp_stats["V_loss_var"] + exp_stats["V_loss"] / run_counter,
-        y2=exp_stats["V_loss_var"] + exp_stats["V_loss"] / run_counter,
+        y1=-np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
+        y2=np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
         color=f"C{exp_counter}",
         alpha=0.2,
     )
@@ -209,20 +215,27 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         exp_stats["T_topology_mean"] / run_counter,
         color=f"C{exp_counter}",
     )
-    plt.plot(
-        exp_stats["V_topology_mean"] / run_counter, "--", color=f"C{exp_counter}"
-    )  # + '-V'
-    plt.fill_between(
-        x=x,
-        y1=-exp_stats["T_topology_mean_var"] + exp_stats["T_topology_mean"] / run_counter,
-        y2=exp_stats["T_topology_mean_var"] + exp_stats["T_topology_mean"] / run_counter,
-        color=f"C{exp_counter}",
-        alpha=0.2,
-    )
+    plt.ylim([0,1])
+    # plt.plot(
+    #     exp_stats["V_topology_mean"] / run_counter, "--", color=f"C{exp_counter}"
+    # )  # + '-V'
+    # plt.fill_between(
+    #     x=x,
+    #     y1=-np.sqrt(exp_stats["T_topology_mean_var"])
+    #     + exp_stats["T_topology_mean"] / run_counter,
+    #     y2=np.sqrt(exp_stats["T_topology_mean_var"])
+    #     + exp_stats["T_topology_mean"] / run_counter,
+    #     color=f"C{exp_counter}",
+    #     alpha=0.2,
+    # )
+    plt.plot(exp_stats["T_topology_max"] / run_counter,'-.', color=f"C{exp_counter}")
+    plt.plot(exp_stats["T_topology_min"] / run_counter,'--', color=f"C{exp_counter}")
+
+
     plt.figure(5)  # V ineq error violation
-    plt.plot(np.mean(exp_stats["V_ineq_num_viol_0"], axis=1) / run_counter)
+    plt.plot(exp_stats["V_ineq_num_viol_0"]/ run_counter)
     plt.figure(6)  # V ineq error violation
-    plt.plot(np.mean(exp_stats["V_ineq_num_viol_1"], axis=1) / run_counter)
+    plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter)
 
     # print final epoch results:
     print("\n\n ---------- \nNN size: {}".format(current_nn))

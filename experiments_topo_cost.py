@@ -23,7 +23,7 @@ parser.add_argument(
     help="model to train",
 )
 parser.add_argument(
-        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig"]
+        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig","None"]
 )
 
 batch_args = vars(parser.parse_args())
@@ -36,7 +36,7 @@ except AssertionError:
     exit()
 
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir,  "phys_topoLoss_SE.txt")
+filepath = os.path.join(save_dir, "_".join(["supervised",f'args["switchActivation"]', "PhyR"])+".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)

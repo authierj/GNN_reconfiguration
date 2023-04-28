@@ -9,6 +9,7 @@ dataprofiles/.DS_Store
 .idea/
 results/*
 results_copy/*
+results_previous/*
 plots/*
 datasets/baranwu33/*
 datasets/node4/*
