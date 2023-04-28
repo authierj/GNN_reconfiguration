@@ -203,11 +203,13 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
         if args["topoLoss"]:
-            topo_cost = torch.sum(utils.opt_topology_dist_JA(z_hat, data.y, data.switch_mask), axis=1)
+            train_loss += args["topoWeight"] * utils.squared_error_topology(
+                z_hat, data.y, data.switch_mask
+            )
             # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
             #     z_hat, data.y, data.switch_mask
             # )
-            train_loss += args["topoWeight"] * topo_cost
+     
         # time_start = time.time()
         train_loss.sum().backward()
         optimizer.step()
@@ -384,7 +386,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--norm", type=str, default="batch", choices=["batch", "layer", "none"]
     )
-    parser.add_argument("--gated", type=bool, default=False)
+    parser.add_argument("--gated", type=bool, default=True)
     parser.add_argument(
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )

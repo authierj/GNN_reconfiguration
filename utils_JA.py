@@ -513,6 +513,29 @@ class Utils:
     
         return topology.flatten()
 
+        # y_sorted_inds = torch.argsort(p_switch)  # sorted in ascending order
+        # p_switch_copy = p_switch.clone()
+
+        # # output_bin_y = torch.clamp(bin_vars_y, 0, 1)
+        # # ceil the largest L values to 1, floor the smallest size(bin_y)-L values to 0
+        # rows_to_ceil = np.hstack((np.arange(0, 200).repeat(L))) # np.where(r == 0)[0]
+        # cols_to_ceil = np.hstack((y_sorted_inds[:, -L:].flatten())) # y_sorted_inds[np.where(r == 0)[0], -L_min-1]
+
+        # num_to_zero = p_switch.size(dim=1) - L
+        # if num_to_zero > 0:
+        #     rows_to_floor = np.hstack((np.arange(0, 200).repeat(num_to_zero))) # np.where(r == -1)[0]
+        #     cols_to_floor = np.hstack((y_sorted_inds[:, 0:num_to_zero].flatten())) # y_sorted_inds[np.where(r == -1)[0], -L_min-1]
+        # else:
+        #     rows_to_floor = []
+        #     cols_to_floor = []
+        # # output_bin_y[rows_to_ceil, cols_to_ceil] = output_bin_y[rows_to_ceil, cols_to_ceil].ceil()
+        # # output_bin_y[rows_to_floor, cols_to_floor] = output_bin_y[rows_to_floor, cols_to_floor].floor()
+        # p_switch_copy[rows_to_ceil, cols_to_ceil] = torch.maximum(p_switch[rows_to_ceil, cols_to_ceil], torch.ones(1, len(p_switch[rows_to_ceil, cols_to_ceil])))  # 1
+        # p_switch_copy[rows_to_floor, cols_to_floor] = torch.minimum(p_switch[rows_to_floor, cols_to_floor], torch.zeros(1, len(p_switch[rows_to_floor, cols_to_floor])))  # 0
+
+        # topology = p_switch_copy.flatten()
+        # return topology
+
     def complete_JA(self, x, v, p_flow, topo, incidence):
         """
         return the completion variables to satisfy the power flow equations
@@ -624,6 +647,33 @@ class Utils:
 
         criterion = nn.BCELoss(reduction="sum")
         return criterion(switch_decision, y)
+
+    def squared_error_topology(self, z, y, switch_mask):
+        """
+        squared_error_topology returns the squared error between the topology chosen by the neural network and the reference topology
+
+        args:
+            z_hat: the output of the neural network
+            y: the reference solution
+            switch_mask: the mask for the switches
+
+        return:
+            loss: the squared error between the topology chosen by the neural network and the reference topology
+        """
+        _, opt_y_no_last, _, _, _, _, _, _, _ = self.decompose_vars_z(
+            y[:, : self.zrdim]
+        )
+        _, y_last, _, _, _ = self.decompose_vars_zc(y[:, self.zrdim : :])
+
+        y = torch.cat((opt_y_no_last, y_last.view(-1, 1)), dim=1)
+        _, _, topology = self.decompose_vars_z_JA(z)
+        switch_decision = topology[switch_mask].reshape_as(y)
+
+        criterion = nn.MSELoss(reduction="none")
+        distance = criterion(switch_decision, y)
+        return torch.sum(distance, dim=1)
+
+
 
     def opt_topology_dist_JA(self, z, y, switch_mask):
         """

@@ -24,6 +24,7 @@ def main(args):
     return:
         save_dir: directory where the results are stored
     """
+    torch.autograd.set_detect_anomaly(True)    
     total_time_start = time.time()
     # Making the code device-agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -210,13 +211,12 @@ def train(model, optimizer, criterion, loader, args, utils):
             train=True,
         )
         if args["topoLoss"]:
-            topo_cost = torch.sum(
-                utils.opt_topology_dist_JA(z_hat, data.y, data.switch_mask), axis=1
+            train_loss += args["topoWeight"] * utils.squared_error_topology(
+                z_hat, data.y, data.switch_mask
             )
             # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
             #     z_hat, data.y, data.switch_mask
             # )
-            train_loss += args["topoWeight"] * topo_cost
 
         # time_start = time.time()
         train_loss.sum().backward()
