@@ -36,7 +36,7 @@ except AssertionError:
     exit()
 
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir, "_".join(["supervised",f'{args["switchActivation"]}', "PhyR"])+".txt")
+filepath = os.path.join(save_dir, "_".join(["supervised",f'{args["switchActivation"]}', "mod_PhyR"])+".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)

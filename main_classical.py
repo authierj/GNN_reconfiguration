@@ -69,7 +69,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "_".join(["supervised", "back", "PhyR"]),
+            "_".join(["supervised", f'{args["switchActivation"]}', "mod_PhyR"]),
             model.__class__.__name__,
             "_".join(
                 [
