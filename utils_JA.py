@@ -171,13 +171,13 @@ class Utils:
         p = p_switch[:, :-1]
 
         # Find the L-th largest values along each row
-        _, indices = torch.topk(p, L + 1, dim=1, largest=True, sorted=False)
+        _, indices = torch.topk(p, L + 1, dim=1, largest=True, sorted=True)
 
         # Create a mask of the same shape as p_switch
-        mask = torch.zeros_like(p, requires_grad=True)
+        mask = torch.zeros_like(p, requires_grad=True, device=self.device)
 
         # Set the L largest values in each row to one
-        ind = torch.stack([torch.arange(p.size(0)), indices[:,-1]], dim=1)
+        ind = torch.stack([torch.arange(p.size(0), device=self.device), indices[:,-1]], dim=1)
 
         topology = torch.scatter(mask, 1, indices[:,:-1], 1)
         topology[ind[:,0], ind[:,1]] = p[ind[:,0], ind[:,1]]
