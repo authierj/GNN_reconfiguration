@@ -103,10 +103,6 @@ def main(args):
     file = os.path.join(save_dir, "stats.dict")
     # train and test
     for i in range(num_epochs):
-        if i == 100:
-            optimizer.param_groups[0]["lr"] *= 0.1
-            print(i)
-
         start_train = time.time()
         train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils)
         end_train = time.time()

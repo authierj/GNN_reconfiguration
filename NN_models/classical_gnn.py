@@ -305,11 +305,10 @@ class GNN_local_MLP(nn.Module):
 
 
 class GCN_Global_MLP(nn.Module):
-    def __init__(self, GNN, readout, completion_step):
+    def __init__(self, args, N, output_dim):
         super().__init__()
-        self.GNN = GNN
-        self.readout = readout
-        self.completion_step = completion_step
+        self.GNN = GCN(args)
+        self.readout = GlobalMLP(args, N, output_dim)
 
     def forward(self, data, utils):
         # input of Rabab's NN
@@ -321,10 +320,6 @@ class GCN_Global_MLP(nn.Module):
         out = self.readout(x_nn)
         z = utils.output_layer(out)
 
-        if self.completion_step:
-            z, zc = utils.complete(x_input, z)
-            zc_tensor = torch.stack(list(zc), dim=0)
-            return z, zc_tensor, x_input
-
-        else:
-            return utils.process_output(x_input, out), x_input
+        z, zc = utils.complete(x_input, z)
+        zc_tensor = torch.stack(list(zc), dim=0)
+        return z, zc_tensor, x_input

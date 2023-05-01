@@ -8,7 +8,7 @@ import time
 import os
 
 # Local
-from utils_JA import Utils
+from utils import OPTreconfigure
 from utils_JA import total_loss, dict_agg
 from NN_layers import readout
 from datasets.graphdataset import GraphDataSet
@@ -24,7 +24,6 @@ def main(args):
     return:
         save_dir: directory where the results are stored
     """
-    torch.autograd.set_detect_anomaly(True)    
     total_time_start = time.time()
     # Making the code device-agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -35,11 +34,11 @@ def main(args):
 
     try:
         with open(filepath, "rb") as f:
-            data = pickle.load(f)
+            data_rabab = pickle.load(f)
     except FileNotFoundError:
         print("Network file does not exist")
 
-    utils = Utils(data, device)
+    utils = OPTreconfigure(data_rabab, device)
     graph_dataset = GraphDataSet(root="datasets/" + args["network"])
     graph_dataset.data.to(device)
 
@@ -54,7 +53,7 @@ def main(args):
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
-    output_dim = utils.M + utils.N + utils.numSwitches
+    output_dim = data_rabab.zdim
 
     model = getattr(classical_gnn, args["model"])(args, utils.N, output_dim)
     model = model.to(device)
@@ -107,11 +106,6 @@ def main(args):
     stats = {}
     # train and test
     for i in range(num_epochs):
-        # Update learning rate after 150 epochs
-        # if i == 150:
-        #     for param_group in optimizer.param_groups:
-        #         param_group["lr"] = args["lr"] / 10
-
         start_train = time.time()
         train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils)
         end_train = time.time()
@@ -189,16 +183,46 @@ def train(model, optimizer, criterion, loader, args, utils):
     model.train()
 
     size = len(loader) * args["batchSize"]
-    epoch_stats = {}
+    stats = {}
+    make_prefix = lambda metric: "{}_{}".format(prefix, metric)
 
     # TODO change data structure to save
     total_time = 0
     opt_time = 0
     for data in loader:
-        # time_start = time.time()
         z_hat, zc_hat = model(data, utils)
-        # time_end = time.time()
-        # total_time += time_end - time_start
+
+        if args['lossFnc'] == 'unsupervised':
+            loss, _ = total_loss(data, idx2, x, z, zc, False, soft_weight, args)
+        else:
+            loss = total_supervised_loss(data, idx1, x, z, zc, soft_weight, args, 'valid')
+
+        dict_agg(stats, make_prefix('loss'), torch.mean(loss).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('time'), base_end_time-start_time, op='sum')
+        dict_agg(stats, make_prefix('obj_eval'), torch.mean(data.obj_fnc(x, z, zc)).detach().cpu().numpy())
+
+        ineq_res = data.ineq_dist(z, zc, idx2)
+        dict_agg(stats, make_prefix('ineq_max'), torch.mean(torch.max(ineq_res, dim=1)[0]).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('ineq_mean'), torch.mean(torch.mean(ineq_res, dim=1)).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('ineq_min'), torch.mean(torch.min(ineq_res, dim=1)[0]).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('ineq_num_viol_0'),
+                torch.mean(torch.sum(ineq_res > eps_converge, dim=1).float()).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('ineq_num_viol_1'),
+                torch.mean(torch.sum(ineq_res > 10 * eps_converge, dim=1).float()).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('ineq_num_viol_2'),
+                torch.mean(torch.sum(ineq_res > 100 * eps_converge, dim=1).float()).detach().cpu().numpy())
+
+        dispatch_dist, topology_dist = loss_supervised(data, idx1, x, z, zc, prefix)
+        dict_agg(stats, make_prefix('dispatch_error_max'), torch.mean(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('dispatch_error_mean'), torch.mean(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('dispatch_error_min'), torch.mean(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('topology_error_max'), torch.mean(torch.max(topology_dist, dim=1)[0]).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('topology_error_mean'), torch.mean(torch.mean(topology_dist, dim=1)).detach().cpu().numpy())
+        dict_agg(stats, make_prefix('topology_error_min'), torch.mean(torch.min(topology_dist, dim=1)[0]).detach().cpu().numpy())
+        # TODO: add error for per var per epoch?
+
+
+
 
         train_loss, soft_weight = total_loss(
             z_hat,
@@ -320,18 +344,71 @@ def test_or_validate(model, criterion, loader, args, utils):
     return epoch_stats
 
 
+def total_loss(data, idx, x, z, zc, train, soft_weight, args):
+    obj_cost = data.obj_fnc(x, z, zc)
+    ineq_dist = data.ineq_dist(z, zc, idx)  # gives update for vector weight
+    ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
+    # eq_dist = data.eq_resid(x, z, zc)
+    # eq_cost = torch.norm(eq_dist, dim=1)
+    # print('eq_dist in total_loss: {:.4f}, norm: {:.4f}'.format(torch.max(eq_dist), torch.max(eq_cost)))
+    # eq_cost = 0  # COME BACK AND CHECK LATER - should be enforced by completion
+
+    if train and args['useAdaptiveWeight']:
+        if args['useVectorWeight']:
+            soft_weight_new = soft_weight + args['adaptiveWeightLr']*ineq_dist.detach()
+            return obj_cost + torch.sum((soft_weight + args['adaptiveWeightLr'] * ineq_dist) * ineq_dist, 1), soft_weight_new
+        else:
+            soft_weight_new = soft_weight + args['adaptiveWeightLr']*ineq_cost.detach()
+            return obj_cost + (soft_weight + args['adaptiveWeightLr'] * ineq_cost) * ineq_cost, soft_weight_new
+            # soft_weight = soft_weight + args['adaptiveWeightLr']*torch.square(ineq_cost)
+    # else:
+    #     soft_weight_new = soft_weight
+
+    return obj_cost + soft_weight * ineq_cost, soft_weight
+    # + args['softWeight'] * eq_cost
+            # (1 - args['softWeightEqFrac'])
+            # +  args['softWeight'] * args['softWeightEqFrac'] * eq_cost
+
+
+def probe_error(data, idx, x, z, zc):
+    obj_cost = data.obj_fnc(x, z, zc)
+    ineq_dist = data.ineq_dist(z, zc, idx)  # gives update for vector weight
+    ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
+
+    return ineq_dist
+
+
+def total_supervised_loss(data, idx, x, z, zc, soft_weight, args, mode):
+    dispatch_dist, topology_dist = loss_supervised(data, idx, x, z, zc, mode)
+
+    ineq_dist = data.ineq_dist(z, zc, idx)  # gives update for vector weight
+    ineq_cost = torch.norm(ineq_dist, dim=1)  # gives norm for scalar weight
+
+    cost = torch.norm(dispatch_dist, dim=1) + torch.norm(topology_dist, dim=1)
+    return cost + soft_weight * ineq_cost  # add the inequality constraint penalty to the supervised function, March 26
+
+
+def loss_supervised(data, idx, x, z, zc, nn_mode):  # nn_mode = 'train', 'test', 'valid'
+    dispatch_dist = data.opt_dispatch_dist(x, z, zc, idx, nn_mode)
+    topology_dist = loss_topology(data, idx, x, z, zc, nn_mode)
+    return dispatch_dist, topology_dist
+
+
+def loss_topology(data, idx, x, z, zc, nn_mode):
+    topology_dist = data.opt_topology_dist(x, z, zc, idx, nn_mode)
+    return topology_dist
+
+
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "--model",
-        default="GCN_local_MLP",
-        choices=[
-            "GCN_Global_MLP_reduced_model",
-            "GCN_local_MLP",
-            "GNN_global_MLP",
-            "GNN_local_MLP",
-        ],
+        default="GCN_Global_MLP",
+        choices=["GCN_Global_MLP"],
         help="model to train",
     )
     parser.add_argument(

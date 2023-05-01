@@ -11,8 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["supervised_GatedSwitchGNN"]
-
+    exp_names = ["supervised_GCN_Global_MLP_reduced_model"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
