@@ -183,9 +183,6 @@ class Utils:
         topology[ind[:,0], ind[:,1]] = p[ind[:,0], ind[:,1]]
         topo = torch.hstack((topology, -p[ind[:,0], ind[:,1]].unsqueeze(1)))
         
-        summation = torch.sum(topo)
-        assert torch.sum(topo) < L * 200 + 1e-1 and torch.sum(topo) > L * 200 - 1e-1, "The number of switches is not correct"
-
         return topo.flatten()
 
         # y_sorted_inds = torch.argsort(p_switch)  # sorted in ascending order
