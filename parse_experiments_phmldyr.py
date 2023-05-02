@@ -242,7 +242,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     # )
     plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
     plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
-
+    plt.ylim([0,1])
 
     plt.figure(5)  # V ineq error violation
     plt.plot(exp_stats["V_ineq_num_viol_0"]/ run_counter)
