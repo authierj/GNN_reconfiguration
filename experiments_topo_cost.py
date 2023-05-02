@@ -41,7 +41,7 @@ filepath = os.path.join(save_dir, "_".join(["supervised",f'{args["switchActivati
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-num_runs = 3
+num_runs = 5
 args["model"] = batch_args["model"]
 args["switchActivation"] = batch_args["switchActivation"]
 
