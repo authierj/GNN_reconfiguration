@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--model",
     type=str,
-    default="GCN_local_MLP",
+    default="GCN_Global_MLP_reduced_model",
     choices=[
         "GCN_Global_MLP_reduced_model",
         "GCN_local_MLP",
@@ -36,7 +36,7 @@ except AssertionError:
     exit()
 
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir, "_".join(["supervised",f'args["switchActivation"]', "PhyR"])+".txt")
+filepath = os.path.join(save_dir, "_".join(["supervised",f'{args["switchActivation"]}', "PhyR"])+".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)

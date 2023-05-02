@@ -260,51 +260,6 @@ class Utils:
         delzc = torch.matmul(self.dzc_dz_mat, delz.T).T
         return delz, delzc
 
-    def mixed_sigmoid(self, nnout, epoch):
-        # apply sigmoids here to get pg and v, and integer-ify the topology selection
-
-        # parameter tau controls sharpness of the sigmoid function applied to binary variables. larger = sharper
-        # tau = 5
-        if epoch < 300:
-            tau = 5
-        # elif epoch < 800:
-        #     tau = 10
-        else:
-            tau = 10
-
-        z = sigFnc(self)(nnout, tau)
-
-        # z = [zji, y\last, pij, pji, qji, {qij}sw, v\f, plf, qlf]  # initial guess from NN
-        # zji and y\last are binary vars, which have already been processed to be between 0 and 1
-        # process pij, pji, qji, {qij}_sw, v\f, plf, qlf to be within reasonable bounds
-        (
-            zji,
-            y_nol,
-            pij_nn,
-            pji_nn,
-            qji_nn,
-            qij_nosw_nn,
-            v_nn,
-            plf,
-            qlf,
-        ) = self.decompose_vars_z(z)
-        pij = (
-            pij_nn * self.bigM
-        )  # pij_min = 0; don't enforce any power flow constraints here
-        pji = (
-            pji_nn * self.bigM
-        )  # pji_min = 0; don't enforce any power flow constraints here
-        qji = (
-            qji_nn * self.bigM
-        )  # qji_min = 0; don't enforce any power flow constraints here
-        qij_nosw = qij_nosw_nn * self.bigM
-        v = v_nn * self.vUpp + (1 - v_nn) * self.vLow
-        z_physical = torch.hstack(
-            (zji, y_nol, pij, pji, qji, qij_nosw, v, plf.unsqueeze(1), qlf.unsqueeze(1))
-        )
-
-        return z_physical
-
     def output_layer(self, nnout):
         # apply mixed sigmoid to zji var
         # apply random {0,1} selection to {y}\last
@@ -394,9 +349,6 @@ class Utils:
         z_new = torch.hstack((output_bin_zji, output_bin_y, output_cont))
         return z_new
 
-    def complete(self, x, z):  # , zslack
-        z, zc = dc3Function(self)(x, z)
-        return z, zc
 
     def decompose_vars_x(self, x):
         # x = [pl\f, ql\f]  # input to NN
@@ -882,101 +834,6 @@ def opt_dispatch_dist(self, x, z, zc, idx, nn_mode):
     )  # return squared error
 
     return dispatch_resid
-
-
-def total_supervised_loss(data, idx, x, z, zc, soft_weight, args, mode):
-    dispatch_dist, topology_dist = loss_supervised(data, idx, x, z, zc, mode)
-    cost = torch.norm(dispatch_dist, dim=1) + torch.norm(topology_dist, dim=1)
-    return cost
-
-
-def grad_steps(x, z, zc, args, utils, idx, plotFlag):
-    """
-    absolutely no clue about what happens here
-    """
-
-    take_grad_steps = args["useTrainCorr"]
-    # plotFlag = True
-    if take_grad_steps:
-        lr = args["corrLr"]
-        num_steps = args["corrTrainSteps"]
-        momentum = args["corrMomentum"]
-
-        z_new = z
-        zc_new = zc
-        old_delz = 0
-        old_delphiz = 0
-
-        z_new_c = z
-        zc_new_c = zc
-        old_delz_c = 0
-        old_delphiz_c = 0
-
-        if plotFlag:
-            num_steps = 200  # 10000
-            ineq_costs = np.array(())
-            ineq_costs_c = np.array(())
-
-        iters = 0
-        for i in range(num_steps):
-            delz, delphiz = utils.corr_steps(x, z_new, zc_new, idx)
-            new_delz = lr * delz + momentum * old_delz
-            new_delphiz = lr * delphiz + momentum * old_delphiz
-            z_new = z_new - new_delz
-            # FEB 14: something in correction not working. use this until debugged
-            _, zc_new_compl = utils.complete(x, z_new)
-            zc_new = torch.stack(list(zc_new_compl), dim=0)
-            old_delz = new_delz
-            old_delphiz = new_delphiz
-
-            delz_c, delphiz_c = utils.corr_steps(x, z_new_c, zc_new_c, idx)
-            new_delz_c = lr * delz_c + momentum * old_delz_c
-            new_delphiz_c = lr * delphiz_c + momentum * old_delphiz_c
-            z_new_c = z_new_c - new_delz_c
-            _, zc_new_compl = utils.complete(x, z_new_c)
-            zc_new_c = torch.stack(list(zc_new_compl), dim=0)
-            old_delz_c = new_delz_c
-            old_delphiz_c = new_delphiz_c
-
-            check_z = torch.max(z_new - z_new_c)
-            check_zc = torch.max(zc_new - zc_new_c)
-
-            eq_check = utils.eq_resid(x, z_new, zc_new)
-            eq_check_c = utils.eq_resid(x, z_new_c, zc_new_c)
-
-            if torch.max(eq_check) > 1e-6:
-                print("eq_update z broken".format(torch.max(eq_check)))
-            if torch.max(eq_check_c) > 1e-6:
-                print("eq_update z compl broken".format(torch.max(eq_check_c)))
-            if check_z > 1e-6:
-                print("z updates not consistent".format(check_z))
-            if check_zc > 1e-6:
-                print("zc updates not consistent".format(check_zc))
-
-            if plotFlag:
-                ineq_cost = torch.norm(
-                    utils.ineq_resid(z_new.detach(), zc_new.detach(), idx), dim=1
-                )
-                ineq_costs = np.hstack((ineq_costs, ineq_cost[0].detach().numpy()))
-                ineq_cost_c = torch.norm(
-                    utils.ineq_resid(z_new_c, zc_new_c, idx), dim=1
-                )
-                ineq_costs_c = np.hstack(
-                    (ineq_costs_c, ineq_cost_c[0].detach().numpy())
-                )
-
-            iters += 1
-
-        if plotFlag:
-            fig, ax = plt.subplots()
-            fig_c, ax_c = plt.subplots()
-            s = np.arange(1, iters + 1, 1)
-            ax.plot(s, ineq_costs)
-            ax_c.plot(s, ineq_costs_c)
-
-        return z_new, zc_new
-    else:
-        return z, zc
 
 
 def dict_agg(stats, key, value, op):
