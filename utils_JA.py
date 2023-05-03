@@ -863,27 +863,27 @@ def dict_agg(stats, key, value, op):
 
 def default_args():
     defaults = {}
-
+    
+    defaults["model"] = "GCN_local_MLP"
     defaults["network"] = "baranwu33"
     defaults["epochs"] = 500
     defaults["batchSize"] = 200
     defaults["lr"] = 1e-3  # NN learning rate
     defaults["dropout"] = 0.1    
-    defaults["GNN"] = "GCN"
     defaults["numLayers"] = 4
     defaults["inputFeatures"] = 2
     defaults["hiddenFeatures"] = 4
     defaults["softWeight"] = 100  # this is lambda_g in the paper
-    defaults["corrEps"] = 1e-3
-    defaults["saveAllStats"] = True
+    defaults["saveModel"] = False    
+    defaults["saveAllStats"] = False
     defaults["resultsSaveFreq"] = 50
-    defaults["saveModel"] = True
+    defaults["topoLoss"] = False
+    defaults["topoWeight"] = 100
     defaults["aggregation"] = "max"
     defaults["norm"] = "batch"
-    defaults["gated"] = True
-    defaults["topoLoss"] = True
-    defaults["topoWeight"] = 100
-    defaults["switchActivation"] = None
+    defaults["corrEps"] = 1e-3
+    defaults["switchActivation"] = "sig"
+    defaults["warmStart"] = False
 
     return defaults
 

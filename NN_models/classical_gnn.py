@@ -23,7 +23,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
             self.switch_activation = nn.Identity()
 
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
 
@@ -38,10 +38,13 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         p_switch = out[:, -utils.numSwitches : :]
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
-        topology = utils.physic_informed_rounding(
-                p_switch.flatten(), n_switch_per_batch
-        )
-        # topology = p_switch.flatten().sigmoid()
+        if warm_start:
+            topology = utils.physic_informed_rounding(
+                    p_switch.flatten(), n_switch_per_batch
+            )
+        else:
+            topology = p_switch.flatten().sigmoid()
+
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
@@ -78,7 +81,7 @@ class GCN_local_MLP(nn.Module):
         else:
             self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
@@ -105,10 +108,13 @@ class GCN_local_MLP(nn.Module):
 
         p_switch = self.switch_activation(SMLP_out[:, 0])
 
-        topology = utils.physic_informed_rounding(
-            p_switch, n_switch_per_batch
-        ) # num_switches*B
-        # topology = SMLP_out[:, 0].sigmoid()
+        if warm_start:
+            topology = utils.physic_informed_rounding(
+                    p_switch.flatten(), n_switch_per_batch
+            )
+        else:
+            topology = p_switch.flatten().sigmoid()
+
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 

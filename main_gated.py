@@ -80,8 +80,8 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
+            "warmStart_PhyR",
             model.__class__.__name__,
-            "sigmoid",
             "_".join(
                 [
                     f'{args["numLayers"]}',
@@ -90,24 +90,27 @@ def main(args):
                 ]
             ),
         )
-    i = 0
     while os.path.exists(os.path.join(save_dir, f"v{i}")):
         i += 1
         if i >= 10:
             print("experiment already ran 10 times")
             return save_dir
-    save_dir = os.path.join(save_dir, f"v{i}")
-    os.makedirs(save_dir)
+        save_dir = os.path.join(save_dir, f"v{i}")
+        os.makedirs(save_dir)
+        file = os.path.join(save_dir, "stats.dict")
 
+    i = 0
     stats = {}
-    file = os.path.join(save_dir, "stats.dict")
+    warm_start = False
     # train and test
     for i in range(num_epochs):
+        if i == 250 and args["warmStart"]:
+            warm_start=True
         start_train = time.time()
-        train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils)
+        train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils, warm_start)
         end_train = time.time()
         train_time = end_train - start_train
-        valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils)
+        valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils, warm_start)
 
         print(
             f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
@@ -159,7 +162,7 @@ def main(args):
     return save_dir
 
 
-def train(model, optimizer, criterion, loader, args, utils):
+def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     """
     train the model for one epoch
 
@@ -183,11 +186,7 @@ def train(model, optimizer, criterion, loader, args, utils):
     total_time = 0
     opt_time = 0
     for data in loader:
-        # time_start = time.time()
-        z_hat, zc_hat = model(data, utils)
-        # time_end = time.time()
-        # total_time += time_end - time_start
-
+        z_hat, zc_hat = model(data, utils, warm_start)
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -243,7 +242,7 @@ def train(model, optimizer, criterion, loader, args, utils):
     return epoch_stats
 
 
-def test_or_validate(model, criterion, loader, args, utils):
+def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     """
     test the model on the test set or vallidation set
 
@@ -262,7 +261,7 @@ def test_or_validate(model, criterion, loader, args, utils):
     epoch_stats = {}
 
     for data in loader:
-        z_hat, zc_hat = model(data, utils)
+        z_hat, zc_hat = model(data, utils, warm_start)
         valid_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -387,7 +386,10 @@ if __name__ == "__main__":
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--switchActivation", type=str, default=None, choices=["sig", "mod_sig", "None"]
+        "--switchActivation", type=str, default="sig", choices=["sig", "mod_sig", "None"]
+    )
+    parser.add_argument(
+        "--warmStart", action="store_true", help="whether to warm start the PhyR"
     )
 
     args = parser.parse_args()
