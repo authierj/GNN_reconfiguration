@@ -462,8 +462,10 @@ class Utils:
         
         # Set the L largest values in each row to one
         topology = torch.scatter(mask, 1, indices, 1)
+        result = p_switch + (topology - p_switch).detach()
+
     
-        return topology.flatten()
+        return result.flatten()
 
         # y_sorted_inds = torch.argsort(p_switch)  # sorted in ascending order
         # p_switch_copy = p_switch.clone()
