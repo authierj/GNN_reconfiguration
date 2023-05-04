@@ -170,7 +170,6 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
         self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
-        self.completion_step = args["useCompl"]
         self.device = args["device"]
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
