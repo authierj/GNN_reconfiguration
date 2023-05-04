@@ -17,10 +17,6 @@ numSwitches = length(swInds);
 mStartInd = [1,2,1,2]; % parent node for line
 mEndInd = [2,3,4,4]; % child node for line
 
-% added for GNN
-edge_index = [mStartInd; mEndInd]-1; % Graph connectivity in COO format with shape [2, num_edges] (directed graph)
-bi_edge_index = [mStartInd, mEndInd; mEndInd, mStartInd]; % Graph connectivity in COO format with shape [2, 2*num_edges] (undirected graph)
-
 % setup negative incidence matrix, A is MxN
 mStart = sparse( mStartInd, 1:M, 1, N, M); % NxM
 mEnd = sparse( mEndInd, 1:M, 1, N, M); % NxM
@@ -37,10 +33,9 @@ vLow = 0.95; % V, magnitude
 vUpp = 1.05; % V, magnitude
 
 % save network data
-networkKeySet = {'SBase','VBase','ZBase','YBase','IBase','N','M','swInds','numSwitches','mStart','mEnd','A','Aflow','R','X','vLow','vUpp', 'bi_edge_index'};
-networkValueSet = {SBase,VBase,ZBase,YBase,IBase,N,M,swInds,numSwitches,mStart,mEnd,A,Aflow,R,X,vLow,vUpp, bi_edge_index};
+networkKeySet = {'SBase','VBase','ZBase','YBase','IBase','N','M','swInds','numSwitches','mStart','mEnd','A','Aflow','R','X','vLow','vUpp'};
+networkValueSet = {SBase,VBase,ZBase,YBase,IBase,N,M,swInds,numSwitches,mStart,mEnd,A,Aflow,R,X,vLow,vUpp};
 network_4_data = cell2struct(networkValueSet', networkKeySet);
-
 
 %% Case data
 
@@ -234,7 +229,7 @@ case_data = cell2struct(caseValueSet', caseKeySet);
 model_paramzed = reconfigure_optimizer.get_paramzed_model(network_4_data);
 res = reconfigure_optimizer.solve_case(model_paramzed, network_4_data, case_data);
 
-for ind = 1:total_cases+length(col_delete) % 1:total_cases+length(col_delete)
+for ind = total_cases+1:total_cases+length(col_delete) % 1:total_cases+length(col_delete)
     % each column is a new case
     if find(ind==col_delete)
         continue
@@ -243,7 +238,7 @@ for ind = 1:total_cases+length(col_delete) % 1:total_cases+length(col_delete)
     caseValueSet = {PL(:, ind), QL(:, ind), PGLow(:, ind), PGUpp(:, ind), QGLow(:, ind), QGUpp(:, ind)};
     case_data = cell2struct(caseValueSet', caseKeySet);
 
-    [z_case, zc_case, yij_res_case, yaltime_case, solvertime_case, objval_case, error] = reconfigure(network_4_data, case_data);
+    [z_case, zc_case, yaltime_case, solvertime_case, objval_case, error] = reconfigure(network_4_data, case_data);
     
     if error ~= 0 
         errored = [errored, ind]; % remove these test cases later
@@ -264,7 +259,7 @@ end
 resValueSet_all = {z, zc, yalmiptime, solvertime, objVal};
 res_data_all = cell2struct(resValueSet_all', resKeySet);
 
-save('casedata_graph.mat', 'network_4_data', 'case_data_all', 'res_data_all')
+save('casedata.mat', 'network_4_data', 'case_data_all', 'res_data_all')
 
 %% Setup load and generation data
 function mm_d_all = load_variations_uniform()

@@ -1,5 +1,6 @@
 %% need to solve PF for default topology
-filename = 'casedata_33_rand';
+% filename = 'casedata_33_rand';
+filename = 'casedata_83_REDS_profile_fixedVmin';
 load(strcat(filename, '.mat'))
 total_cases = size(case_data_all.PL,2);
 PL = case_data_all.PL;
@@ -10,11 +11,15 @@ QGLow = case_data_all.QGLow;
 QGUpp = case_data_all.QGUpp;
 
 % set the topology we are interested in
-y_ij_fixed = [1 1 0 0 0 0 0]'; % default
-% y_ij_fixed = [0 0 0 0 1 0 1]'; % base
+% y_ij_fixed = [1 1 0 0 0 0 0]'; % default for 33
+% y_ij_fixed = [0 0 0 0 1 0 1]'; % base for 33
+
+y_ij_fixed = base; % base for 83_REDS (most common config)
+% y_ij_fixed = configs(:,7); % second most common
+% y_ij_fixed = configs(:,8); % third most common
 
 % get parameterized model for faster solving
-model_paramzed = powerflow_optimizer.get_paramzed_model(network_33_data, y_ij_fixed);
+model_paramzed = powerflow_optimizer.get_paramzed_model(network_data, y_ij_fixed);
 
 
 % setup result matrices, solve all cases
@@ -27,7 +32,7 @@ for ind = 1:total_cases
     caseValueSet = {PL(:, ind), QL(:, ind), PGLow(:, ind), PGUpp(:, ind), QGLow(:, ind), QGUpp(:, ind)};
     case_data = cell2struct(caseValueSet', caseKeySet);
 
-    [z_case, zc_case, solvetime_case, objval_case, err] = powerflow_optimizer.solve_case(model_paramzed, network_33_data, case_data, y_ij_fixed);
+    [z_case, zc_case, solvetime_case, objval_case, err] = powerflow_optimizer.solve_case(model_paramzed, network_data, case_data, y_ij_fixed);
     
     if err ~= 0 
         errored = [errored, ind]; % flag as issue
@@ -48,4 +53,4 @@ resValueSet_all = {z, zc, solvetime, objVal};
 res_data_all = cell2struct(resValueSet_all', resKeySet);
 
 % save case data
-save(strcat(filename, '_PFdefault.mat'), 'network_33_data', 'case_data_all', 'res_data_all')
+save(strcat(filename, '_PFother8.mat'), 'network_data', 'case_data_all', 'res_data_all')

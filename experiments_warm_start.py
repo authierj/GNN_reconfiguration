@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--model",
     type=str,
-    default="GCN_Global_MLP_reduced_model",
+    default="GCN_local_MLP",
     choices=[
         "GCN_Global_MLP_reduced_model",
         "GCN_local_MLP",
@@ -27,6 +27,7 @@ parser.add_argument(
 )
 parser.add_argument("--saveAllStats", action="store_true")
 parser.add_argument("--saveModel", action="store_true")
+parser.add_argument("--topoLoss", action="store_true")
 
 exp_args = vars(parser.parse_args())
 args = default_args()
@@ -36,12 +37,12 @@ for key, value in exp_args.items():
 
 print(args)
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir, "_".join(["warmStart", "PhyR"]) + ".txt")
+filepath = os.path.join(save_dir, "_".join(["supervised","back", "PhyR"]) + ".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-num_runs = 5
+num_runs = 2
 
 if os.path.exists(filepath):
     print("this file already exists and will be completed with new results")
