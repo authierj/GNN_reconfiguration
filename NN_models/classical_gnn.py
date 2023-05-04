@@ -203,7 +203,6 @@ class GNN_global_MLP(nn.Module):
 
         topology = utils.physic_informed_rounding(
             p_switch.flatten(), n_switch_per_batch
-            p_switch.flatten(), n_switch_per_batch
         )
         graph_topo = torch.ones((200, utils.M), device=self.device).bool()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
@@ -275,7 +274,6 @@ class GNN_local_MLP(nn.Module):
 
         topology = utils.physic_informed_rounding(
             p_switch, n_switch_per_batch
-        )  # num_switches*B
         )  # num_switches*B
         graph_topo = torch.ones((200, utils.M)).bool().to(self.device)
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))

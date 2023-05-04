@@ -65,7 +65,6 @@ class GatedSwitchGNN(nn.Module):
         self.Encoder = GatedSwitchesEncoder(args)
         self.SMLP = SMLP(
             4 * args["hiddenFeatures"], 4 * args["hiddenFeatures"], args["dropout"]
-            4 * args["hiddenFeatures"], 4 * args["hiddenFeatures"], args["dropout"]
         )
         self.CMLP = CMLP(
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
@@ -148,12 +147,6 @@ class GatedSwitchGNN(nn.Module):
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
         v = (
-            data.D_inv
-            @ data.Incidence_parent.float()
-            @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + data.D_inv
-            @ data.Incidence_child.float()
-            @ (vc_child + vs_child).unsqueeze(2).float()
             data.D_inv
             @ data.Incidence_parent.float()
             @ (vc_parent + vs_parent).unsqueeze(2).float()
