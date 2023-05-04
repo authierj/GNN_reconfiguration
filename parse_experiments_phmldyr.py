@@ -42,6 +42,8 @@ def parse_NN_size(experiment_filepath):
     run_counter = 0
     best_topo = np.zeros(500)
     worst_topo = np.zeros(500)
+    best_topo = np.zeros(500)
+    worst_topo = np.zeros(500)
     current_nn = ""
     with open(experiment_filepath[0]) as exp_file:
         while line := exp_file.readline().rstrip():
@@ -77,6 +79,8 @@ def parse_NN_size(experiment_filepath):
                             # fmt: off
                             exp_stats["T_topology_best"] = best_topo 
                             exp_stats["T_topology_worst"] = worst_topo
+                            exp_stats["T_topology_best"] = best_topo 
+                            exp_stats["T_topology_worst"] = worst_topo
                             exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
                             exp_stats["V_loss_var"] = np.var(exp_stats["V_loss_var"], axis=0)
                             exp_stats["T_dispatch_mean_var"] = np.var(exp_stats["T_dispatch_mean_var"], axis=0)
@@ -93,6 +97,8 @@ def parse_NN_size(experiment_filepath):
                             current_nn = exp_nn  # update experiment
                             exp_stats = {}  # reset the experiment stats
                             run_counter = 0  # reset run counter
+                            best_topo = 0
+                            worst_topo = 0
                             best_topo = 0
                             worst_topo = 0
 
@@ -121,7 +127,20 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'V_dispatch_mean_var', stats_dict["valid_dispatch_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'T_topology_mean_var', stats_dict["train_topology_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_topology_mean_var', stats_dict["valid_topology_error_mean"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'T_loss_var', stats_dict["train_loss"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'V_loss_var', stats_dict["valid_loss"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'T_dispatch_mean_var', stats_dict["train_dispatch_error_mean"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'V_dispatch_mean_var', stats_dict["valid_dispatch_error_mean"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'T_topology_mean_var', stats_dict["train_topology_error_mean"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'V_topology_mean_var', stats_dict["valid_topology_error_mean"].copy(), op="vstack")
                         # fmt: on
+                        if run_counter == 0:
+                            best_topo = stats_dict["train_topology_error_mean"].copy()
+                            worst_topo = stats_dict["train_topology_error_mean"].copy()
+                        elif stats_dict["train_topology_error_mean"][-1] < best_topo[-1]:
+                            best_topo = stats_dict["train_topology_error_mean"].copy()
+                        elif stats_dict["train_topology_error_mean"][-1] > worst_topo[-1]:
+                            worst_topo = stats_dict["train_topology_error_mean"].copy()
                         if run_counter == 0:
                             best_topo = stats_dict["train_topology_error_mean"].copy()
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
@@ -132,7 +151,11 @@ def parse_NN_size(experiment_filepath):
                         run_counter += 1  # increment run counter
 
 
+
+
         if flag_start:
+            exp_stats["T_topology_best"] = best_topo 
+            exp_stats["T_topology_worst"] = worst_topo
             exp_stats["T_topology_best"] = best_topo 
             exp_stats["T_topology_worst"] = worst_topo
             exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
@@ -240,6 +263,9 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     #     color=f"C{exp_counter}",
     #     alpha=0.2,
     # )
+    plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
+    plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
+    plt.ylim([0,1])
     plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
     plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
     plt.ylim([0,1])

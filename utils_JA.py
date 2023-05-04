@@ -574,12 +574,17 @@ def default_args():
     return defaults
 
 
+
 class Modified_Sigmoid(nn.Module):
     def __init__(self, tau=5):
         super(Modified_Sigmoid, self).__init__()
         self.tau = tau
 
     def forward(self, p):
+        return torch.clamp(
+            2 / (1 + torch.exp(-self.tau * p)) - 1, 0
+        )  # modified sigmoid
+
         return torch.clamp(
             2 / (1 + torch.exp(-self.tau * p)) - 1, 0
         )  # modified sigmoid
