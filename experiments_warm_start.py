@@ -23,8 +23,10 @@ parser.add_argument(
     help="model to train",
 )
 parser.add_argument(
-        "--warmStart", action="store_true", help="whether to warm start the PhyR"
+    "--warmStart", action="store_true", help="whether to warm start the PhyR"
 )
+parser.add_argument("--saveAllStats", action="store_true")
+parser.add_argument("--saveModel", action="store_true")
 
 exp_args = vars(parser.parse_args())
 args = default_args()
@@ -34,7 +36,7 @@ for key, value in exp_args.items():
 
 print(args)
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir, "_".join(["warmStart", "PhyR"])+".txt")
+filepath = os.path.join(save_dir, "_".join(["warmStart", "PhyR"]) + ".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)

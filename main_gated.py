@@ -90,16 +90,17 @@ def main(args):
                 ]
             ),
         )
-    while os.path.exists(os.path.join(save_dir, f"v{i}")):
-        i += 1
-        if i >= 10:
-            print("experiment already ran 10 times")
-            return save_dir
+    if args["saveModel"] or args["saveAllStats"]:
+        i = 0
+        while os.path.exists(os.path.join(save_dir, f"v{i}")):
+            i += 1
+            if i >= 10:
+                print("experiment already ran 10 times")
+                return save_dir
         save_dir = os.path.join(save_dir, f"v{i}")
         os.makedirs(save_dir)
         file = os.path.join(save_dir, "stats.dict")
 
-    i = 0
     stats = {}
     warm_start = False
     # train and test

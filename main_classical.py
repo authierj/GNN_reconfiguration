@@ -92,8 +92,8 @@ def main(args):
                 ]
             ),
         )
-
     if args["saveModel"] or args["saveAllStats"]:
+        i = 0
         while os.path.exists(os.path.join(save_dir, f"v{i}")):
             i += 1
             if i >= 10:
@@ -103,7 +103,6 @@ def main(args):
         os.makedirs(save_dir)
         file = os.path.join(save_dir, "stats.dict")
 
-    i = 0
     stats = {}
     warm_start = False
     # train and test

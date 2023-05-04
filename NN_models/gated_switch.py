@@ -19,7 +19,6 @@ class GatedSwitchesEncoder(nn.Module):
                 args["norm"],
                 learn_norm,
                 track_norm,
-                args["gated"],
             )
             for _ in range(args["numLayers"] - 1)
         ]
@@ -32,7 +31,6 @@ class GatedSwitchesEncoder(nn.Module):
                 args["norm"],
                 learn_norm,
                 track_norm,
-                args["gated"],
             ),
         )
 
