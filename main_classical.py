@@ -69,7 +69,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "_".join(["supervised", "back", "PhyR"]),
+            "_".join(["supervised", "warmStart", "mod_PhyR"]),
             model.__class__.__name__,
             "_".join(
                 [
@@ -82,7 +82,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "warmStart_PhyR",
+            "test_mod_PhyR",
             model.__class__.__name__,
             "_".join(
                 [
@@ -111,7 +111,7 @@ def main(args):
         # if i == 150:
         #     for param_group in optimizer.param_groups:
         #         param_group["lr"] = args["lr"] / 10
-        if i == 0 and args["warmStart"]:
+        if i == 250 and args["warmStart"]:
             warm_start=True
 
         start_train = time.time()
@@ -266,6 +266,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
 
+    i = 0 
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
         valid_loss, soft_weight = total_loss(
@@ -278,6 +279,10 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             utils.A,
             train=True,
         )
+        
+        if i == 1:
+            _, _, topo = utils.decompose_vars_z_JA(z_hat)
+            dict_agg(epoch_stats, 'valid_pswitch', topo[10,-7:].detach().cpu().numpy(), op='vstack')
 
         dispatch_dist = utils.opt_dispatch_dist_JA(
             z_hat.detach(), zc_hat.detach(), data.y.detach()
@@ -310,6 +315,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
+        i += 1
     return epoch_stats
 
 

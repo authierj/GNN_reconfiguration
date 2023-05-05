@@ -37,7 +37,10 @@ for key, value in exp_args.items():
 
 print(args)
 save_dir = os.path.join("results", "experiments")
-filepath = os.path.join(save_dir, "_".join(["supervised","back", "PhyR"]) + ".txt")
+if args["topoLoss"]:
+    filepath = os.path.join(save_dir, "_".join(["supervised","warmStart", "mod_PhyR"]) + ".txt")
+else:
+    filepath = os.path.join(save_dir, "_".join(["test", "mod_PhyR"]) + ".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)

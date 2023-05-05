@@ -32,7 +32,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         xg = self.GNN(data.x, data.edge_index)
 
         x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
-        # x_nn = xg.view(200, -1, xg.shape[1]) 
+        # x_nn = xg.view(200, -1, xg.shape[1])
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = out[:, -utils.numSwitches : :]
@@ -85,8 +85,8 @@ class GCN_local_MLP(nn.Module):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
-        
-        
+
+
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
         num_features = xg.shape[1]
 
@@ -99,7 +99,12 @@ class GCN_local_MLP(nn.Module):
         x_2 = x_nn[:, switches_nodes[:, 1], :].view(-1, num_features)
 
         x_g = torch.sum(x_nn, dim=1)  # B x F
-        x_g_extended = x_g.repeat(1, utils.numSwitches).view(-1, num_features)  # dim = num_switches*B x F
+        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
+            -1, num_features
+        )  # dim = num_switches*B x F
+        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
+            -1, num_features
+        )  # dim = num_switches*B x F
 
         SMLP_input = torch.cat((x_1, x_2, x_g_extended), dim=1)  # num_switches*B x 3F
         SMLP_out = self.SMLP(
@@ -166,6 +171,8 @@ class GCN_local_MLP(nn.Module):
 
         return z, zc
 
+
+
 class GNN_global_MLP(nn.Module):
     def __init__(self, args, N, output_dim):
         super().__init__()
@@ -178,7 +185,8 @@ class GNN_global_MLP(nn.Module):
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
-        
+
+
     def forward(self, data, utils):
         # input of Rabab's NN
         x_input = data.x.view(200, -1, 2)
@@ -186,14 +194,15 @@ class GNN_global_MLP(nn.Module):
         xg = self.GNN(data.x, data.edge_index)
 
         x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
-        # x_nn = xg.view(200, -1, xg.shape[1]) 
+        # x_nn = xg.view(200, -1, xg.shape[1])
+        # x_nn = xg.view(200, -1, xg.shape[1])
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         topology = utils.physic_informed_rounding(
-                p_switch.flatten(), n_switch_per_batch
+            p_switch.flatten(), n_switch_per_batch
         )
         graph_topo = torch.ones((200, utils.M), device=self.device).bool()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
@@ -212,6 +221,8 @@ class GNN_global_MLP(nn.Module):
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
         return z, zc
 
+
+
 class GNN_local_MLP(nn.Module):
     def __init__(self, args, N, output_dim):
         super().__init__()
@@ -229,11 +240,12 @@ class GNN_local_MLP(nn.Module):
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
-        
+
+
     def forward(self, data, utils):
         x_input = data.x.view(200, -1, 2)
-        
-        
+
+
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
         num_features = xg.shape[1]
 
@@ -246,7 +258,12 @@ class GNN_local_MLP(nn.Module):
         x_2 = x_nn[:, switches_nodes[:, 1], :].view(-1, num_features)
 
         x_g = torch.sum(x_nn, dim=1)  # B x F
-        x_g_extended = x_g.repeat(1, utils.numSwitches).view(-1, num_features)  # dim = num_switches*B x F
+        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
+            -1, num_features
+        )  # dim = num_switches*B x F
+        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
+            -1, num_features
+        )  # dim = num_switches*B x F
 
         SMLP_input = torch.cat((x_1, x_2, x_g_extended), dim=1)  # num_switches*B x 3F
         SMLP_out = self.SMLP(
@@ -257,7 +274,7 @@ class GNN_local_MLP(nn.Module):
 
         topology = utils.physic_informed_rounding(
             p_switch, n_switch_per_batch
-        ) # num_switches*B
+        )  # num_switches*B
         graph_topo = torch.ones((200, utils.M)).bool().to(self.device)
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 

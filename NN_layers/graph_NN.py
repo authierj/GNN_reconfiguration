@@ -92,7 +92,6 @@ class GatedSwitchesLayer(nn.Module):
         self.learn_norm = learn_norm
         self.track_norm = track_norm
         self.gated = gated
-        assert self.gated, "Use gating with GNN, pass the `--gated` flag"
 
         self.U = nn.Linear(hidden_dim, hidden_dim, bias=True)
         self.V = nn.Linear(hidden_dim, hidden_dim, bias=True)

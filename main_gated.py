@@ -67,7 +67,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "phys_topoLoss_SE",
+            "_".join(["supervised", "warmStart", "mod_PhyR"]),
             model.__class__.__name__,
             "_".join(
                 [
@@ -80,7 +80,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "warmStart_PhyR",
+            "warmStart_mod_PhyR",
             model.__class__.__name__,
             "_".join(
                 [
