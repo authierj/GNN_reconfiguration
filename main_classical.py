@@ -172,6 +172,18 @@ def main(args):
     total_time = total_time_end - total_time_start
     print(f"Total time: {total_time:.4f}")
 
+    print(
+        "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
+        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
+            stats["valid_loos"][-1] / run_counter,
+            stats["valid_dispatch_error_mean"][-1],
+            stats["valid_topology_error_mean"][-1],
+            stats["valid_ineq_mean"][-1],
+            stats["valid_ineq_max"][-1],
+            stats["valid_ineq_num_viol_1"][-1],
+        )
+    )
+
     if args["saveModel"]:
         return save_dir
     else:
