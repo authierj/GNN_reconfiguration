@@ -198,7 +198,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         if warm_start:
-            topology = self.PhyR(p_switch.flatten(), n_switches)
+            topology = self.PhyR(p_switch.flatten(), n_switch_per_batch)
         else:
             topology = p_switch.flatten()
 
