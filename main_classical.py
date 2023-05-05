@@ -112,15 +112,19 @@ def main(args):
         #     for param_group in optimizer.param_groups:
         #         param_group["lr"] = args["lr"] / 10
         if i == 250 and args["warmStart"]:
-            warm_start=True
+            warm_start = True
 
         start_train = time.time()
-        train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils, warm_start)
+        train_epoch_stats = train(
+            model, optimizer, cost_fnc, train_loader, args, utils, warm_start
+        )
         end_train = time.time()
         train_time = end_train - start_train
-        valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils, warm_start)
+        valid_epoch_stats = test_or_validate(
+            model, cost_fnc, valid_loader, args, utils, warm_start
+        )
 
-        if i%10 == 0:
+        if i % 10 == 0:
             print(
                 f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
             )
@@ -217,7 +221,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
-        
+
         dispatch_dist = utils.opt_dispatch_dist_JA(
             z_hat.detach(), zc_hat.detach(), data.y.detach()
         )
@@ -266,7 +270,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
 
-    i = 0 
+    i = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
         valid_loss, soft_weight = total_loss(
@@ -279,10 +283,15 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             utils.A,
             train=True,
         )
-        
+
         if i == 1:
             _, _, topo = utils.decompose_vars_z_JA(z_hat)
-            dict_agg(epoch_stats, 'valid_pswitch', topo[10,-7:].detach().cpu().numpy(), op='vstack')
+            dict_agg(
+                epoch_stats,
+                "valid_pswitch",
+                topo[10, -7:].detach().cpu().numpy(),
+                op="vstack",
+            )
 
         dispatch_dist = utils.opt_dispatch_dist_JA(
             z_hat.detach(), zc_hat.detach(), data.y.detach()
@@ -400,10 +409,19 @@ if __name__ == "__main__":
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--switchActivation", type=str, default="sig", choices=["sig", "mod_sig", "None"]
+        "--switchActivation",
+        type=str,
+        default="sig",
+        choices=["sig", "mod_sig", "None"],
     )
     parser.add_argument(
         "--warmStart", action="store_true", help="whether to warm start the PhyR"
+    )
+    parser.add_argument(
+        "--PhyR",
+        type=str,
+        default="PhyR",
+        choices=["PhyR", "back_PhyR", "mod_PhyR", "mod_back_PhyR"],
     )
 
     args = parser.parse_args()

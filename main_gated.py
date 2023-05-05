@@ -106,16 +106,21 @@ def main(args):
     # train and test
     for i in range(num_epochs):
         if i == 250 and args["warmStart"]:
-            warm_start=True
+            warm_start = True
         start_train = time.time()
-        train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils, warm_start)
+        train_epoch_stats = train(
+            model, optimizer, cost_fnc, train_loader, args, utils, warm_start
+        )
         end_train = time.time()
         train_time = end_train - start_train
-        valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils, warm_start)
-
-        print(
-            f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
+        valid_epoch_stats = test_or_validate(
+            model, cost_fnc, valid_loader, args, utils, warm_start
         )
+
+        if i % 10 == 0:
+            print(
+                f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
+            )
 
         if args["saveAllStats"]:
             # fmt: off
@@ -205,7 +210,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
             # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
             #     z_hat, data.y, data.switch_mask
             # )
-     
+
         # time_start = time.time()
         train_loss.sum().backward()
         optimizer.step()
@@ -261,6 +266,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
 
+    i = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
         valid_loss, soft_weight = total_loss(
@@ -273,6 +279,14 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             utils.A,
             train=True,
         )
+        if i == 1:
+            _, _, topo = utils.decompose_vars_z_JA(z_hat)
+            dict_agg(
+                epoch_stats,
+                "valid_pswitch",
+                topo[10, -7:].detach().cpu().numpy(),
+                op="vstack",
+            )
 
         dispatch_dist = utils.opt_dispatch_dist_JA(
             z_hat.detach(), zc_hat.detach(), data.y.detach()
@@ -305,6 +319,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
+        i += 1
     return epoch_stats
 
 
@@ -387,10 +402,19 @@ if __name__ == "__main__":
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--switchActivation", type=str, default="sig", choices=["sig", "mod_sig", "None"]
+        "--switchActivation",
+        type=str,
+        default="sig",
+        choices=["sig", "mod_sig", "None"],
     )
     parser.add_argument(
         "--warmStart", action="store_true", help="whether to warm start the PhyR"
+    )
+    parser.add_argument(
+        "--PhyR",
+        type=str,
+        default="PhyR",
+        choices=["PhyR", "back_PhyR", "mod_PhyR", "mod_back_PhyR"],
     )
 
     args = parser.parse_args()

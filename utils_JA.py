@@ -60,7 +60,7 @@ class Utils:
         qlf = z[:, 4 * self.M + 2 * self.numSwitches - 1 + self.N]
 
         return zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf
-    
+
     def decompose_vars_zc(self, zc):
         # zc = [zij, ylast, {qij}nosw, pg, qg]  # completion vars
         zij = zc[:, np.arange(0, self.M)]
@@ -70,7 +70,7 @@ class Utils:
         qg = zc[:, 2 * self.M + 1 - self.numSwitches + self.N + np.arange(0, self.N)]
 
         return zij, ylast, qij_nosw, pg, qg
-    
+
     def decompose_vars_z_JA(self, z):
         """
         decompose_vars_z_JA returns the decomposition of the neural network guess of Jules' reduced model
@@ -121,7 +121,7 @@ class Utils:
         fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
         return fncval
 
-    def physic_informed_rounding(self, s, n_switches):
+    def PhyR(self, s, n_switches):
         """
         args:
             s: Input switch  probabilities prediction of the NN in a flattened vector
@@ -129,41 +129,52 @@ class Utils:
         return:
             The topology of the graph
         """
-
-        """
-        switch_indices = torch.cumsum(n_switches, dim=0)
-        begin = switch_indices[0:-1]
-        end = switch_indices[1:]
-        topology = torch.zeros_like(s).bool()
-        L_min = (self.N - 1) - (self.M - n_switches).int()
-
-        s_idx_before = 0
-        i = 0
-
-        for s_idx in switch_indices:
-            closed_indices = torch.topk(s[s_idx_before:s_idx], k=L_min[i]).indices
-            topology[s_idx_before:s_idx][closed_indices] = True
-            i = i + 1
-            s_idx_before = s_idx
-
-        return topology
-
         n_switches = n_switches[0]
-        L_min = (self.N - 1) - (self.M - n_switches).int()
-        p_switches = s.view(200, -1)
+        L = (self.N - 1) - (self.M - n_switches).int()
+        p_switch = s.view(200, -1)
 
-        top_l_values, top_l_indices = torch.topk(p_switches, L_min, dim=1)
+        # Find the L-th largest values along each row
+        _, indices = torch.topk(p_switch, L, dim=1, largest=True, sorted=True)
 
-        # create a mask indicating which elements in p_switch are in the top L values
-        # mask = p_switches >= top_l_values[:, -1].unsqueeze(1)
+        # Create a mask of the same shape as p_switch
+        mask = torch.zeros_like(p_switch, requires_grad=True, device=self.device)
 
-        # create a tensor of zeros with the same shape as p_switch
-        top_l = torch.zeros_like(p_switches, dtype=torch.bool, device=self.device)
+        # Set the L largest values in each row to one
+        topology = torch.scatter(mask, 1, indices, 1)
 
-        # use the mask to set the top L values to True
-        top_l[top_l_indices] = True
+        return topology.flatten()
 
-        topology = top_l.flatten()
+    def back_PhyR(self, s, n_switches):
+        """
+        args:
+            s: Input switch  probabilities prediction of the NN in a flattened vector
+            n_switches: The number of switches in each batch
+        return:
+            The topology of the graph
+        """
+        n_switches = n_switches[0]
+        L = (self.N - 1) - (self.M - n_switches).int()
+        p_switch = s.view(200, -1)
+
+        # Find the L-th largest values along each row
+        _, indices = torch.topk(p_switch, L, dim=1, largest=True, sorted=True)
+
+        # Create a mask of the same shape as p_switch
+        mask = torch.zeros_like(p, requires_grad=True, device=self.device)
+
+        # Set the L largest values in each row to one
+        topology = torch.scatter(mask, 1, indices, 1)
+        result = p_switch + (topology - p_switch).detach()
+
+        return result.flatten()
+
+    def mod_PhyR(self, s, n_switches):
+        """
+        args:
+            s: Input switch  probabilities prediction of the NN in a flattened vector
+            n_switches: The number of switches in each batch
+        return:
+            The topology of the graph
         """
         n_switches = n_switches[0]
         L = (self.N - 1) - (self.M - n_switches).int()
@@ -177,36 +188,46 @@ class Utils:
         mask = torch.zeros_like(p, requires_grad=True, device=self.device)
 
         # Set the L largest values in each row to one
-        ind = torch.stack([torch.arange(p.size(0), device=self.device), indices[:,-1]], dim=1)
+        ind = torch.stack(
+            [torch.arange(p.size(0), device=self.device), indices[:, -1]], dim=1
+        )
 
-        topology = torch.scatter(mask, 1, indices[:,:-1], 1)
-        topology[ind[:,0], ind[:,1]] = p[ind[:,0], ind[:,1]]
-        topo = torch.hstack((topology, -p[ind[:,0], ind[:,1]].unsqueeze(1)))
-        
+        topology = torch.scatter(mask, 1, indices[:, :-1], 1)
+        topology[ind[:, 0], ind[:, 1]] = p[ind[:, 0], ind[:, 1]]
+        topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
+
         return topo.flatten()
 
-        # y_sorted_inds = torch.argsort(p_switch)  # sorted in ascending order
-        # p_switch_copy = p_switch.clone()
+    def back_mod_PhyR(self, s, n_switches):
+        """
+        args:
+            s: Input switch  probabilities prediction of the NN in a flattened vector
+            n_switches: The number of switches in each batch
+        return:
+            The topology of the graph
+        """
+        n_switches = n_switches[0]
+        L = (self.N - 1) - (self.M - n_switches).int()
+        p_switch = s.view(200, -1)
+        p = p_switch[:, :-1]
 
-        # # output_bin_y = torch.clamp(bin_vars_y, 0, 1)
-        # # ceil the largest L values to 1, floor the smallest size(bin_y)-L values to 0
-        # rows_to_ceil = np.hstack((np.arange(0, 200).repeat(L))) # np.where(r == 0)[0]
-        # cols_to_ceil = np.hstack((y_sorted_inds[:, -L:].flatten())) # y_sorted_inds[np.where(r == 0)[0], -L_min-1]
+        # Find the L-th largest values along each row
+        _, indices = torch.topk(p, L + 1, dim=1, largest=True, sorted=True)
 
-        # num_to_zero = p_switch.size(dim=1) - L
-        # if num_to_zero > 0:
-        #     rows_to_floor = np.hstack((np.arange(0, 200).repeat(num_to_zero))) # np.where(r == -1)[0]
-        #     cols_to_floor = np.hstack((y_sorted_inds[:, 0:num_to_zero].flatten())) # y_sorted_inds[np.where(r == -1)[0], -L_min-1]
-        # else:
-        #     rows_to_floor = []
-        #     cols_to_floor = []
-        # # output_bin_y[rows_to_ceil, cols_to_ceil] = output_bin_y[rows_to_ceil, cols_to_ceil].ceil()
-        # # output_bin_y[rows_to_floor, cols_to_floor] = output_bin_y[rows_to_floor, cols_to_floor].floor()
-        # p_switch_copy[rows_to_ceil, cols_to_ceil] = torch.maximum(p_switch[rows_to_ceil, cols_to_ceil], torch.ones(1, len(p_switch[rows_to_ceil, cols_to_ceil])))  # 1
-        # p_switch_copy[rows_to_floor, cols_to_floor] = torch.minimum(p_switch[rows_to_floor, cols_to_floor], torch.zeros(1, len(p_switch[rows_to_floor, cols_to_floor])))  # 0
+        # Create a mask of the same shape as p_switch
+        mask = torch.zeros_like(p, requires_grad=True, device=self.device)
 
-        # topology = p_switch_copy.flatten()
-        # return topology
+        # Set the L largest values in each row to one
+        ind = torch.stack(
+            [torch.arange(p.size(0), device=self.device), indices[:, -1]], dim=1
+        )
+
+        topology = torch.scatter(mask, 1, indices[:, :-1], 1)
+        topology[ind[:, 0], ind[:, 1]] = p[ind[:, 0], ind[:, 1]]
+        topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
+        result = p_switch + (topo - p_switch).detach()
+
+        return result.flatten()
 
     def complete_JA(self, x, v, p_flow, topo, incidence):
         """
@@ -286,7 +307,7 @@ class Utils:
                 v_upp_resid,
                 v_low_resid,
                 connectivity,
-                -topology
+                -topology,
             ],
             dim=1,
         )
@@ -549,18 +570,18 @@ def dict_agg(stats, key, value, op):
 
 def default_args():
     defaults = {}
-    
+
     defaults["model"] = "GCN_local_MLP"
     defaults["network"] = "baranwu33"
     defaults["epochs"] = 500
     defaults["batchSize"] = 200
     defaults["lr"] = 1e-3  # NN learning rate
-    defaults["dropout"] = 0.1    
+    defaults["dropout"] = 0.1
     defaults["numLayers"] = 4
     defaults["inputFeatures"] = 2
     defaults["hiddenFeatures"] = 4
     defaults["softWeight"] = 100  # this is lambda_g in the paper
-    defaults["saveModel"] = False    
+    defaults["saveModel"] = False
     defaults["saveAllStats"] = False
     defaults["resultsSaveFreq"] = 50
     defaults["topoLoss"] = False
@@ -570,15 +591,29 @@ def default_args():
     defaults["corrEps"] = 1e-3
     defaults["switchActivation"] = "sig"
     defaults["warmStart"] = False
+    defaults["PhyR"] = "PhyR"
 
     return defaults
-
 
 
 class Modified_Sigmoid(nn.Module):
     def __init__(self, tau=5):
         super(Modified_Sigmoid, self).__init__()
         self.tau = tau
+
+    def forward(self, p):
+        return torch.clamp(
+            2 / (1 + torch.exp(-self.tau * p)) - 1, 0
+        )  # modified sigmoid
+
+        return torch.clamp(
+            2 / (1 + torch.exp(-self.tau * p)) - 1, 0
+        )  # modified sigmoid
+
+
+class PhyR(nn.Module):
+    def __init__(self):
+        super(PhyR, self).__init__()
 
     def forward(self, p):
         return torch.clamp(

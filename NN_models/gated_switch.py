@@ -5,7 +5,6 @@ from NN_layers.readout import *
 from utils_JA import xgraph_xflatten, Modified_Sigmoid
 
 
-
 class GatedSwitchesEncoder(nn.Module):
     """Configurable GNN Encoder"""
 
@@ -70,6 +69,7 @@ class GatedSwitchGNN(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
+        self.PhyR = args["PhyR"]
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -78,7 +78,6 @@ class GatedSwitchGNN(nn.Module):
             self.switch_activation = nn.Identity()
 
     def forward(self, data, utils, warm_start=False):
-
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
 
@@ -105,13 +104,10 @@ class GatedSwitchGNN(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
-
         p_switch = self.switch_activation(SMLP_out[:, 0])
 
         if warm_start:
-            topology = utils.physic_informed_rounding(
-                    p_switch.flatten(), n_switches
-            )
+            topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switches)
         else:
             topology = p_switch.flatten().sigmoid()
 
@@ -172,6 +168,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         self.Encoder = GatedSwitchesEncoder(args)
         self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
         self.device = args["device"]
+        self.PhyR = args["PhyR"]
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -180,10 +177,8 @@ class GatedSwitchGNN_globalMLP(nn.Module):
             self.switch_activation = nn.Identity()
 
     def forward(self, data, utils, warm_start=False):
-
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
-
 
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
@@ -196,7 +191,6 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         SMLP_input = torch.cat((switches.view(200, -1), x.view(200, -1)), axis=1)
         SMLP_out = self.MLP(SMLP_input)  # [pij, v, p_switch]
 
-
         SMLP_input = torch.cat((switches.view(200, -1), x.view(200, -1)), axis=1)
         SMLP_out = self.MLP(SMLP_input)  # [pij, v, p_switch]
 
@@ -204,9 +198,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         if warm_start:
-            topology = utils.physic_informed_rounding(
-                    p_switch.flatten(), n_switch_per_batch
-            )
+            topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switches)
         else:
             topology = p_switch.flatten().sigmoid()
 
@@ -226,4 +218,3 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
         return z, zc
-
