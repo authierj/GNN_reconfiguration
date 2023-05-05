@@ -45,6 +45,7 @@ def parse_NN_size(experiment_filepath):
     best_topo = np.zeros(500)
     worst_topo = np.zeros(500)
     current_nn = ""
+    n=0
     with open(experiment_filepath[0]) as exp_file:
         while line := exp_file.readline().rstrip():
             if not flag_start:
@@ -74,6 +75,7 @@ def parse_NN_size(experiment_filepath):
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
 
                         if exp_nn != current_nn and current_nn != "":
+                            n+=1
                             # plot previous experiment results
                             ## Plotting with new stats (i.e. save results per epoch only)
                             # fmt: off
@@ -88,6 +90,14 @@ def parse_NN_size(experiment_filepath):
                             exp_stats["T_topology_mean_var"] = np.var(exp_stats["T_topology_mean_var"], axis=0)
                             exp_stats["V_topology_mean_var"] = np.var(exp_stats["V_topology_mean_var"], axis=0)
                             # fmt: on
+                            plt.figure(n*10)
+                            p_switches = exp_stats["V_pswitch"]
+                            for i in range(p_switches.shape[1]):
+                                plt.plot(p_switches[:500,i], label=f"switch{i}", color=f"C{i}")
+                                plt.plot(p_switches[500:,i], "--", label=f"switch{i}", color=f"C{i}")
+
+                            plt.title(f'{n}')
+
                             plot_exp_NNsize(
                                 exp_stats, run_counter, current_nn, exp_counter
                             )
@@ -171,6 +181,14 @@ def parse_NN_size(experiment_filepath):
             exp_stats["V_topology_mean_var"] = np.var(
                 exp_stats["V_topology_mean_var"], axis=0
             )
+            plt.figure(40)
+            p_switches = exp_stats["V_pswitch"]
+            for i in range(p_switches.shape[1]):
+                plt.plot(p_switches[:500,i], label=f"switch{i}", color=f"C{i}")
+                plt.plot(p_switches[500:,i], "--", label=f"switch{i}", color=f"C{i}")
+
+            plt.title('4')
+
             plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
 
     if flag_start:

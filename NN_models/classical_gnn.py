@@ -16,7 +16,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         self.GNN = GCN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
         self.device = args["device"]
-        self.PhyR = args["PhyR"]
+        self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -37,13 +37,13 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         # x_nn = xg.view(200, -1, xg.shape[1])
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
-        p_switch = out[:, -utils.numSwitches : :]
+        p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         if warm_start:
-            topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
+            topology = self.PhyR(p_switch.flatten(), n_switch_per_batch)
         else:
-            topology = p_switch.flatten().sigmoid()
+            topology = p_switch.flatten()
 
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
@@ -117,7 +117,7 @@ class GCN_local_MLP(nn.Module):
             topology = self.PhyR(p_switch, n_switch_per_batch)
             # topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
         else:
-            topology = p_switch.flatten().sigmoid()
+            topology = p_switch.flatten()
 
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))

@@ -109,7 +109,7 @@ class GatedSwitchGNN(nn.Module):
         if warm_start:
             topology = self.PhyR(p_switch.flatten(), n_switches)
         else:
-            topology = p_switch.flatten().sigmoid()
+            topology = p_switch.flatten()
 
         graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
         graph_topo[data.switch_mask] = topology.float()
@@ -200,7 +200,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         if warm_start:
             topology = self.PhyR(p_switch.flatten(), n_switches)
         else:
-            topology = p_switch.flatten().sigmoid()
+            topology = p_switch.flatten()
 
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
