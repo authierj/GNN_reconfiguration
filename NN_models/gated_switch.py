@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from NN_layers.graph_NN import GatedSwitchesLayer, FirstGatedSwitchesLayer
 from NN_layers.readout import *
-
+from utils_JA import xgraph_xflatten, Modified_Sigmoid
 
 class GatedSwitchesEncoder(nn.Module):
     """Configurable GNN Encoder"""
@@ -19,7 +19,6 @@ class GatedSwitchesEncoder(nn.Module):
                 args["norm"],
                 learn_norm,
                 track_norm,
-                args["gated"],
             )
             for _ in range(args["numLayers"] - 1)
         ]
@@ -32,7 +31,6 @@ class GatedSwitchesEncoder(nn.Module):
                 args["norm"],
                 learn_norm,
                 track_norm,
-                args["gated"],
             ),
         )
 
@@ -69,10 +67,15 @@ class GatedSwitchGNN(nn.Module):
         self.CMLP = CMLP(
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
-        self.completion_step = args["useCompl"]
         self.device = args["device"]
+        if args["switchActivation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switchActivation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
 
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
@@ -97,11 +100,18 @@ class GatedSwitchGNN(nn.Module):
         SMLP_out = self.SMLP(
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
-        topology = utils.physic_informed_rounding(
-            SMLP_out[:, 0], n_switches
-        )  # num_switches*B
-        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device).bool()
-        graph_topo[data.switch_mask] = topology
+        
+        p_switch = self.switch_activation(SMLP_out[:, 0])
+
+        if warm_start:
+            topology = utils.physic_informed_rounding(
+                    p_switch.flatten(), n_switches
+            )
+        else:
+            topology = p_switch.flatten().sigmoid()
+
+        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
+        graph_topo[data.switch_mask] = topology.float()
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[data.switch_mask] = SMLP_out[:, 1]
@@ -160,10 +170,15 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
         self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
-        self.completion_step = args["useCompl"]
         self.device = args["device"]
+        if args["switchActivation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switchActivation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
 
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
@@ -179,13 +194,17 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         SMLP_input = torch.cat((switches.view(200,-1), x.view(200, -1)), axis=1)
         SMLP_out = self.MLP(SMLP_input) #[pij, v, p_switch]
         
-        p_switch = SMLP_out[:, -utils.numSwitches : :]
+        p_switch = self.switch_activation(SMLP_out[:, -utils.numSwitches : :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
-        topology = utils.physic_informed_rounding(
-            p_switch.flatten(), n_switch_per_batch
-        )
-        graph_topo = torch.ones((200, utils.M), device=self.device).bool()
+        if warm_start:
+            topology = utils.physic_informed_rounding(
+                    p_switch.flatten(), n_switch_per_batch
+            )
+        else:
+            topology = p_switch.flatten().sigmoid()
+
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         v = SMLP_out[:, utils.M : utils.M + utils.N]

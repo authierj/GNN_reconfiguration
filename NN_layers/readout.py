@@ -6,7 +6,7 @@ from torch.nn import Linear
 class GlobalMLP(torch.nn.Module):
     def __init__(self, args, n_nodes, output_dim):
         super(GlobalMLP, self).__init__()
-        torch.manual_seed(12)
+        # torch.manual_seed(12)
         input_features = args["outputFeatures"] * n_nodes
         hidden_features = input_features
         self.lin_input = Linear(input_features, hidden_features)

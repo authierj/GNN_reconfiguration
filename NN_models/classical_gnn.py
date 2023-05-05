@@ -6,7 +6,7 @@ from NN_layers.graph_NN import GCN, GNN
 import torch.autograd.profiler as profiler
 
 # local
-from utils_JA import xgraph_xflatten
+from utils_JA import xgraph_xflatten, Modified_Sigmoid
 
 
 class GCN_Global_MLP_reduced_model(nn.Module):
@@ -15,8 +15,15 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         self.GNN = GCN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
         self.device = args["device"]
+        if args["switchActivation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switchActivation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+
+    def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
 
@@ -31,10 +38,14 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         p_switch = out[:, -utils.numSwitches : :]
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
-        topology = utils.physic_informed_rounding(
-                p_switch.flatten(), n_switch_per_batch
-        )
-        graph_topo = torch.ones((200, utils.M), device=self.device).bool()
+        if warm_start:
+            topology = utils.physic_informed_rounding(
+                    p_switch.flatten(), n_switch_per_batch
+            )
+        else:
+            topology = p_switch.flatten().sigmoid()
+
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         v = out[:, utils.M : utils.M + utils.N]
@@ -62,10 +73,15 @@ class GCN_local_MLP(nn.Module):
         self.CMLP = CMLP(
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
-        self.completion_step = args["useCompl"]
         self.device = args["device"]
+        if args["switchActivation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switchActivation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
@@ -90,10 +106,16 @@ class GCN_local_MLP(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
-        topology = utils.physic_informed_rounding(
-            SMLP_out[:, 0], n_switch_per_batch
-        )  # num_switches*B
-        graph_topo = torch.ones((200, utils.M)).bool().to(self.device)
+        p_switch = self.switch_activation(SMLP_out[:, 0])
+
+        if warm_start:
+            topology = utils.physic_informed_rounding(
+                    p_switch.flatten(), n_switch_per_batch
+            )
+        else:
+            topology = p_switch.flatten().sigmoid()
+
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
@@ -150,6 +172,12 @@ class GNN_global_MLP(nn.Module):
         self.GNN = GNN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
         self.device = args["device"]
+        if args["switchActivation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switchActivation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
         
     def forward(self, data, utils):
         # input of Rabab's NN
@@ -161,7 +189,7 @@ class GNN_global_MLP(nn.Module):
         # x_nn = xg.view(200, -1, xg.shape[1]) 
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
-        p_switch = out[:, -utils.numSwitches : :]
+        p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         topology = utils.physic_informed_rounding(
@@ -194,8 +222,13 @@ class GNN_local_MLP(nn.Module):
         self.CMLP = CMLP(
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
-        self.completion_step = args["useCompl"]
         self.device = args["device"]
+        if args["switchActivation"] == "sig":
+            self.switch_activation = nn.Sigmoid()
+        elif args["switchActivation"] == "mod_sig":
+            self.switch_activation = Modified_Sigmoid()
+        else:
+            self.switch_activation = nn.Identity()
         
     def forward(self, data, utils):
         x_input = data.x.view(200, -1, 2)
@@ -220,9 +253,11 @@ class GNN_local_MLP(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
+        p_switch = self.switch_activation(SMLP_out[:, 0])
+
         topology = utils.physic_informed_rounding(
-            SMLP_out[:, 0], n_switch_per_batch
-        )  # num_switches*B
+            p_switch, n_switch_per_batch
+        ) # num_switches*B
         graph_topo = torch.ones((200, utils.M)).bool().to(self.device)
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
@@ -276,11 +311,10 @@ class GNN_local_MLP(nn.Module):
 
 
 class GCN_Global_MLP(nn.Module):
-    def __init__(self, GNN, readout, completion_step):
+    def __init__(self, args, N, output_dim):
         super().__init__()
-        self.GNN = GNN
-        self.readout = readout
-        self.completion_step = completion_step
+        self.GNN = GCN(args)
+        self.readout = GlobalMLP(args, N, output_dim)
 
     def forward(self, data, utils):
         # input of Rabab's NN
@@ -292,10 +326,6 @@ class GCN_Global_MLP(nn.Module):
         out = self.readout(x_nn)
         z = utils.output_layer(out)
 
-        if self.completion_step:
-            z, zc = utils.complete(x_input, z)
-            zc_tensor = torch.stack(list(zc), dim=0)
-            return z, zc_tensor, x_input
-
-        else:
-            return utils.process_output(x_input, out), x_input
+        z, zc = utils.complete(x_input, z)
+        zc_tensor = torch.stack(list(zc), dim=0)
+        return z, zc_tensor, x_input

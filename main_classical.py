@@ -24,6 +24,7 @@ def main(args):
     return:
         save_dir: directory where the results are stored
     """
+    torch.autograd.set_detect_anomaly(True)
     total_time_start = time.time()
     # Making the code device-agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -65,10 +66,11 @@ def main(args):
 
     print(args["saveModel"])
 
-    if args["saveModel"]:
+    if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            args["model"],"jump_lr",
+            "_".join(["supervised", "back", "PhyR"]),
+            model.__class__.__name__,
             "_".join(
                 [
                     f'{args["numLayers"]}',
@@ -77,7 +79,20 @@ def main(args):
                 ]
             ),
         )
-
+    else:
+        save_dir = os.path.join(
+            "results",
+            "warmStart_PhyR",
+            model.__class__.__name__,
+            "_".join(
+                [
+                    f'{args["numLayers"]}',
+                    f'{args["hiddenFeatures"]}',
+                    f'{args["lr"]:.0e}',
+                ]
+            ),
+        )
+    if args["saveModel"] or args["saveAllStats"]:
         i = 0
         while os.path.exists(os.path.join(save_dir, f"v{i}")):
             i += 1
@@ -89,22 +104,26 @@ def main(args):
         file = os.path.join(save_dir, "stats.dict")
 
     stats = {}
+    warm_start = False
     # train and test
     for i in range(num_epochs):
         # Update learning rate after 150 epochs
-        if i == 150:
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = args["lr"] / 10
+        # if i == 150:
+        #     for param_group in optimizer.param_groups:
+        #         param_group["lr"] = args["lr"] / 10
+        if i == 0 and args["warmStart"]:
+            warm_start=True
 
         start_train = time.time()
-        train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils)
+        train_epoch_stats = train(model, optimizer, cost_fnc, train_loader, args, utils, warm_start)
         end_train = time.time()
         train_time = end_train - start_train
-        valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils)
+        valid_epoch_stats = test_or_validate(model, cost_fnc, valid_loader, args, utils, warm_start)
 
-        print(
-            f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
-        )
+        if i%10 == 0:
+            print(
+                f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
+            )
 
         if args["saveAllStats"]:
             # fmt: off
@@ -132,7 +151,9 @@ def main(args):
         else:
             stats = train_epoch_stats
 
-        if i % args["resultsSaveFreq"] == 0 and (args["saveModel"] or args["saveAllStats"]):
+        if i % args["resultsSaveFreq"] == 0 and (
+            args["saveModel"] or args["saveAllStats"]
+        ):
             torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
             with open(file, "wb") as f:
                 # np.save(f, stats)
@@ -150,9 +171,10 @@ def main(args):
     if args["saveModel"]:
         return save_dir
     else:
-        return 
+        return
 
-def train(model, optimizer, criterion, loader, args, utils):
+
+def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     """
     train the model for one epoch
 
@@ -172,15 +194,8 @@ def train(model, optimizer, criterion, loader, args, utils):
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
 
-    # TODO change data structure to save
-    total_time = 0
-    opt_time = 0
     for data in loader:
-        # time_start = time.time()
-        z_hat, zc_hat = model(data, utils)
-        # time_end = time.time()
-        # total_time += time_end - time_start
-
+        z_hat, zc_hat = model(data, utils, warm_start)
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -191,14 +206,18 @@ def train(model, optimizer, criterion, loader, args, utils):
             utils.A,
             train=True,
         )
+        if args["topoLoss"]:
+            train_loss += args["topoWeight"] * utils.squared_error_topology(
+                z_hat, data.y, data.switch_mask
+            )
+            # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
+            #     z_hat, data.y, data.switch_mask
+            # )
 
-        # time_start = time.time()
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
-        # time_end = time.time()
-        # opt_time += time_end - time_start
-
+        
         dispatch_dist = utils.opt_dispatch_dist_JA(
             z_hat.detach(), zc_hat.detach(), data.y.detach()
         )
@@ -215,21 +234,21 @@ def train(model, optimizer, criterion, loader, args, utils):
             dict_agg(epoch_stats, 'train_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats, 'train_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats,'train_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_max', torch.sum(torch.max(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'train_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'train_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_min', torch.sum(torch.min(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'train_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
         # fmt: on
     # print(f"prediction time: {total_time:.4f}, backprog time: {opt_time:.4f}")
     return epoch_stats
 
 
-def test_or_validate(model, criterion, loader, args, utils):
+def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     """
     test the model on the test set or vallidation set
 
@@ -248,7 +267,7 @@ def test_or_validate(model, criterion, loader, args, utils):
     epoch_stats = {}
 
     for data in loader:
-        z_hat, zc_hat = model(data, utils)
+        z_hat, zc_hat = model(data, utils, warm_start)
         valid_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -270,21 +289,26 @@ def test_or_validate(model, criterion, loader, args, utils):
             z_hat.detach(), data.y.detach(), data.switch_mask.detach()
         )
         eps_converge = args["corrEps"]
-        dict_agg(epoch_stats, 'valid_loss', torch.sum(valid_loss).detach().cpu().numpy()/size, op='sum')
+        dict_agg(
+            epoch_stats,
+            "valid_loss",
+            torch.sum(valid_loss).detach().cpu().numpy() / size,
+            op="sum",
+        )
         if args["saveModel"]:
             # fmt: off
             dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats, 'valid_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats,'valid_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.sum(torch.max(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.sum(torch.min(dispatch_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_max', torch.sum(torch.max(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_min', torch.sum(torch.min(topology_dist, dim=1)[0]).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
     return epoch_stats
 
@@ -294,7 +318,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        default="GNN_local_MLP",
+        default="GCN_local_MLP",
         choices=[
             "GCN_Global_MLP_reduced_model",
             "GCN_local_MLP",
@@ -317,8 +341,9 @@ if __name__ == "__main__":
         "--batchSize", type=int, default=200, help="training batch size"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-4, help="neural network learning rate"
+        "--lr", type=float, default=1e-3, help="neural network learning rate"
     )
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
         "--numLayers", type=int, default=4, help="the number of layers in the GNN"
     )
@@ -340,27 +365,6 @@ if __name__ == "__main__":
         default=100,
         help="total weight given to constraint violations in loss",
     )
-    parser.add_argument(
-        "--useAdaptiveWeight",
-        type=bool,
-        default=False,
-        help="whether constraint violation weight is time-varying",
-    )
-    parser.add_argument(
-        "--useVectorWeight",
-        type=bool,
-        default=False,
-        help="whether constraint violation weight is vector",
-    )
-    parser.add_argument(
-        "--adaptiveWeightLr",
-        type=float,
-        default=1e-2,
-        help="constraint violation adaptive weight learning rate",
-    )
-    parser.add_argument(
-        "--useCompl", type=bool, default=True, help="whether to use completion"
-    )
     parser.add_argument("--saveModel", action="store_true")
     parser.add_argument(
         "--saveAllStats",
@@ -373,54 +377,27 @@ if __name__ == "__main__":
         default=50,
         help="how frequently (in terms of number of epochs) to save stats to file",
     )
-    parser.add_argument("--dropout", type=float, default=0)
+    parser.add_argument(
+        "--topoLoss", action="store_true", help="whether to use topology loss"
+    )
+    parser.add_argument(
+        "--topoWeight", type=float, default=100, help="topology loss weight"
+    )
     parser.add_argument(
         "--aggregation", type=str, default="max", choices=["sum", "mean", "max"]
     )
     parser.add_argument(
         "--norm", type=str, default="batch", choices=["batch", "layer", "none"]
     )
-
     parser.add_argument("--gated", type=bool, default=False)
-
-    parser.add_argument(
-        "--useTrainCorr",
-        type=bool,
-        default=False,
-        help="whether to use correction during training",
-    )
-    parser.add_argument(
-        "--useTestCorr",
-        type=bool,
-        default=False,
-        help="whether to use correction during testing",
-    )
-    parser.add_argument(
-        "--corrTrainSteps",
-        type=int,
-        default=5,
-        help="number of correction steps during training",
-    )
-    parser.add_argument(
-        "--corrTestMaxSteps",
-        type=int,
-        default=5,
-        help="max number of correction steps during testing",
-    )
     parser.add_argument(
         "--corrEps", type=float, default=1e-3, help="correction procedure tolerance"
     )
     parser.add_argument(
-        "--corrLr",
-        type=float,
-        default=1e-4,
-        help="learning rate for correction procedure",
+        "--switchActivation", type=str, default="sig", choices=["sig", "mod_sig", "None"]
     )
     parser.add_argument(
-        "--corrMomentum",
-        type=float,
-        default=0.5,
-        help="momentum for correction procedure",
+        "--warmStart", action="store_true", help="whether to warm start the PhyR"
     )
 
     args = parser.parse_args()

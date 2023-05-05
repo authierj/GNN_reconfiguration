@@ -1,5 +1,5 @@
 __pycache__/*
-**/__pycache__/
+*/__pycache__/
 .vscode/*
 *.m~
 *.DS_Store
@@ -7,7 +7,13 @@ dataprofiles/ISONE_hourlyload/.DS_Store
 dataprofiles/HawaiiData/.DS_Store
 dataprofiles/.DS_Store
 .idea/
-results/
+results/*
+results_copy/*
+results_previous/*
 plots/*
-datasets/*
-
+datasets/baranwu33/*
+datasets/node4/*
+*.log-*
+parse_experiments_phmldyr.py
+plot_experiments.py
+generate_data/*
