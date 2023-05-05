@@ -11,7 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["back_mod_PhyR"]
+    exp_names = ["test_topo_prob_PhyR"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -68,7 +68,7 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("back_mod_PhyR")+14 : line.find("/v")-10]
+                        exp_nn = line[line.find("test_topo_prob_PhyR")+19 : line.find("/v")-10]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
@@ -133,6 +133,7 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'V_dispatch_mean_var', stats_dict["valid_dispatch_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'T_topology_mean_var', stats_dict["train_topology_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_topology_mean_var', stats_dict["valid_topology_error_mean"].copy(), op="vstack")
+                        dict_agg(exp_stats, 'V_pswitch', stats_dict["valid_pswitch"], op="vstack")
                         # fmt: on
                         if run_counter == 0:
                             best_topo = stats_dict["train_topology_error_mean"].copy()
@@ -154,8 +155,6 @@ def parse_NN_size(experiment_filepath):
 
 
         if flag_start:
-            exp_stats["T_topology_best"] = best_topo 
-            exp_stats["T_topology_worst"] = worst_topo
             exp_stats["T_topology_best"] = best_topo 
             exp_stats["T_topology_worst"] = worst_topo
             exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
@@ -197,7 +196,9 @@ def parse_NN_size(experiment_filepath):
         plt.figure(6)  # V ineq error violation
         plt.legend(loc="upper right")
         plt.title(gnn + ", Inequality error violation, 0.01")
-
+        plt.figure(7)  # V ineq error violation
+        plt.legend(loc="upper right")
+        plt.title(gnn + ", Switching probability")
         plt.show()  # enter non-interactive mode, and keep plots
     else:
         print("ERROR: File start ### not found")
@@ -287,6 +288,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         )
     )
 
+    plt.figure(7)
+    p_switches = exp_stats["V_pswitch"]
+    for i in range(p_switches.shape[1]-1):
+        plt.plot(p_switches[:,i], label=f"switch{i}", color=f"C{i}")
+    plt.ylim([0.5,0.52])
     return
 
 

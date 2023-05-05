@@ -11,7 +11,7 @@ import utils_JA
 
 
 class GCN_Global_MLP_reduced_model(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, N, output_dim, utils):
         super().__init__()
         self.GNN = GCN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
@@ -23,9 +23,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
-        self.physic_informed_rounding = getattr(
-            utils_JA, args["physic_informed_rounding"]()
-        )
+        self.PhyR = getattr(utils, args["PhyR"])
 
     def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
@@ -66,7 +64,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
 
 
 class GCN_local_MLP(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, N, output_dim, utils):
         super().__init__()
         self.GNN = GCN(args)
         self.SMLP = SMLP(
@@ -76,7 +74,7 @@ class GCN_local_MLP(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
-        self.PhyR = args["PhyR"]
+        self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -116,7 +114,8 @@ class GCN_local_MLP(nn.Module):
         p_switch = self.switch_activation(SMLP_out[:, 0])
 
         if warm_start:
-            topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
+            topology = self.PhyR(p_switch, n_switch_per_batch)
+            # topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
         else:
             topology = p_switch.flatten().sigmoid()
 

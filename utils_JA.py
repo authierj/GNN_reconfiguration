@@ -115,10 +115,11 @@ class Utils:
         return: the approximate line power losses
         """
 
-        pij, _, _ = self.decompose_vars_z_JA(z)
+        pij, _, topology = self.decompose_vars_z_JA(z)
         qij, _, _ = self.decompose_vars_zc_JA(zc)
 
         fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
+        # prob_push = torch.sum(topology * (topology -1), dim=1)
         return fncval
 
     def PhyR(self, s, n_switches):
@@ -602,24 +603,6 @@ class Modified_Sigmoid(nn.Module):
         self.tau = tau
 
     def forward(self, p):
-        return torch.clamp(
-            2 / (1 + torch.exp(-self.tau * p)) - 1, 0
-        )  # modified sigmoid
-
-        return torch.clamp(
-            2 / (1 + torch.exp(-self.tau * p)) - 1, 0
-        )  # modified sigmoid
-
-
-class PhyR(nn.Module):
-    def __init__(self):
-        super(PhyR, self).__init__()
-
-    def forward(self, p):
-        return torch.clamp(
-            2 / (1 + torch.exp(-self.tau * p)) - 1, 0
-        )  # modified sigmoid
-
         return torch.clamp(
             2 / (1 + torch.exp(-self.tau * p)) - 1, 0
         )  # modified sigmoid

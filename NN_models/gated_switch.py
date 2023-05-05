@@ -59,7 +59,7 @@ class GatedSwitchesEncoder(nn.Module):
 
 
 class GatedSwitchGNN(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, N, output_dim, utils):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
         self.SMLP = SMLP(
@@ -69,7 +69,7 @@ class GatedSwitchGNN(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
-        self.PhyR = args["PhyR"]
+        self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -107,7 +107,7 @@ class GatedSwitchGNN(nn.Module):
         p_switch = self.switch_activation(SMLP_out[:, 0])
 
         if warm_start:
-            topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switches)
+            topology = self.PhyR(p_switch.flatten(), n_switches)
         else:
             topology = p_switch.flatten().sigmoid()
 
@@ -163,12 +163,12 @@ class GatedSwitchGNN(nn.Module):
 
 
 class GatedSwitchGNN_globalMLP(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, N, output_dim, utils):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
         self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
         self.device = args["device"]
-        self.PhyR = args["PhyR"]
+        self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -198,7 +198,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         if warm_start:
-            topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switches)
+            topology = self.PhyR(p_switch.flatten(), n_switches)
         else:
             topology = p_switch.flatten().sigmoid()
 

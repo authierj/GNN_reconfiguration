@@ -56,7 +56,7 @@ def main(args):
     # Model initialization and optimizer
     output_dim = utils.M + utils.N + utils.numSwitches
 
-    model = getattr(classical_gnn, args["model"])(args, utils.N, output_dim)
+    model = getattr(classical_gnn, args["model"])(args, utils.N, output_dim, utils)
     model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
@@ -69,7 +69,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "_".join(["supervised", "warmStart", "mod_PhyR"]),
+            "test_topo_prob_PhyR",
             model.__class__.__name__,
             "_".join(
                 [
@@ -82,7 +82,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "test_mod_PhyR",
+            "test_prob_PhyR",
             model.__class__.__name__,
             "_".join(
                 [
