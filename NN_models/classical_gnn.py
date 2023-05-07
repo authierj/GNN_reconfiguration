@@ -23,7 +23,6 @@ class GCN_Global_MLP_reduced_model(nn.Module):
             self.switch_activation = Modified_Sigmoid()
         else:
             self.switch_activation = nn.Identity()
-        self.PhyR = getattr(utils, args["PhyR"])
 
     def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
@@ -102,10 +101,7 @@ class GCN_local_MLP(nn.Module):
         x_g_extended = x_g.repeat(1, utils.numSwitches).view(
             -1, num_features
         )  # dim = num_switches*B x F
-        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
-            -1, num_features
-        )  # dim = num_switches*B x F
-
+        
         SMLP_input = torch.cat((x_1, x_2, x_g_extended), dim=1)  # num_switches*B x 3F
         SMLP_out = self.SMLP(
             SMLP_input
@@ -141,11 +137,11 @@ class GCN_local_MLP(nn.Module):
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
-        pc_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
+        pc_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((200, -1))
-        vc_parent = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
+        vc_parent = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((200, -1))
-        vc_child = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
+        vc_child = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((200, -1))
 
         p_flow = ps_flow + pc_flow
@@ -177,6 +173,7 @@ class GNN_global_MLP(nn.Module):
         self.GNN = GNN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
         self.device = args["device"]
+        self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -184,24 +181,27 @@ class GNN_global_MLP(nn.Module):
         else:
             self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
+        # x_input = xgraph_xflatten(x, 200, first_node=True)
+
         x_input = data.x.view(200, -1, 2)
 
         xg = self.GNN(data.x, data.edge_index)
 
         x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
         # x_nn = xg.view(200, -1, xg.shape[1])
-        # x_nn = xg.view(200, -1, xg.shape[1])
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
-        topology = utils.physic_informed_rounding(
-            p_switch.flatten(), n_switch_per_batch
-        )
-        graph_topo = torch.ones((200, utils.M), device=self.device).bool()
+        if warm_start:
+            topology = self.PhyR(p_switch.flatten(), n_switch_per_batch)
+        else:
+            topology = p_switch.flatten()
+
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         v = out[:, utils.M : utils.M + utils.N]
@@ -220,7 +220,7 @@ class GNN_global_MLP(nn.Module):
 
 
 class GNN_local_MLP(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, N, output_dim, utils):
         super().__init__()
         self.GNN = GNN(args)
         self.SMLP = SMLP(
@@ -230,6 +230,7 @@ class GNN_local_MLP(nn.Module):
             3 * args["hiddenFeatures"], 3 * args["hiddenFeatures"], args["dropout"]
         )
         self.device = args["device"]
+        self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
             self.switch_activation = nn.Sigmoid()
         elif args["switchActivation"] == "mod_sig":
@@ -237,7 +238,9 @@ class GNN_local_MLP(nn.Module):
         else:
             self.switch_activation = nn.Identity()
 
-    def forward(self, data, utils):
+    def forward(self, data, utils, warm_start=False):
+        # input of Rabab's NN
+        # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
 
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
@@ -255,10 +258,7 @@ class GNN_local_MLP(nn.Module):
         x_g_extended = x_g.repeat(1, utils.numSwitches).view(
             -1, num_features
         )  # dim = num_switches*B x F
-        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
-            -1, num_features
-        )  # dim = num_switches*B x F
-
+        
         SMLP_input = torch.cat((x_1, x_2, x_g_extended), dim=1)  # num_switches*B x 3F
         SMLP_out = self.SMLP(
             SMLP_input
@@ -266,10 +266,13 @@ class GNN_local_MLP(nn.Module):
 
         p_switch = self.switch_activation(SMLP_out[:, 0])
 
-        topology = utils.physic_informed_rounding(
-            p_switch, n_switch_per_batch
-        )  # num_switches*B
-        graph_topo = torch.ones((200, utils.M)).bool().to(self.device)
+        if warm_start:
+            topology = self.PhyR(p_switch, n_switch_per_batch)
+            # topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
+        else:
+            topology = p_switch.flatten()
+
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
@@ -291,11 +294,11 @@ class GNN_local_MLP(nn.Module):
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
-        pc_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
+        pc_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((200, -1))
-        vc_parent = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
+        vc_parent = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((200, -1))
-        vc_child = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
+        vc_child = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((200, -1))
 
         p_flow = ps_flow + pc_flow

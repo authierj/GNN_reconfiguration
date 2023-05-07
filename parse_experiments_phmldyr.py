@@ -11,7 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["test_topo_prob_PhyR"]
+    exp_names = ["test_prob_PhyR"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -69,7 +69,7 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("test_topo_prob_PhyR")+19 : line.find("/v")-10]
+                        exp_nn = line[line.find("test_prob_PhyR")+15 : line.find("/v")-10]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
@@ -93,8 +93,8 @@ def parse_NN_size(experiment_filepath):
                             plt.figure(n*10)
                             p_switches = exp_stats["V_pswitch"]
                             for i in range(p_switches.shape[1]):
-                                plt.plot(p_switches[:500,i], label=f"switch{i}", color=f"C{i}")
-                                plt.plot(p_switches[500:,i], "--", label=f"switch{i}", color=f"C{i}")
+                                plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
+                                plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
                             plt.title(f'{n}')
 
@@ -184,8 +184,8 @@ def parse_NN_size(experiment_filepath):
             plt.figure(40)
             p_switches = exp_stats["V_pswitch"]
             for i in range(p_switches.shape[1]):
-                plt.plot(p_switches[:500,i], label=f"switch{i}", color=f"C{i}")
-                plt.plot(p_switches[500:,i], "--", label=f"switch{i}", color=f"C{i}")
+                plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
+                plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
             plt.title('4')
 
@@ -306,14 +306,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         )
     )
 
-    plt.figure(7)
-    p_switches = exp_stats["V_pswitch"]
-    for i in range(p_switches.shape[1]-1):
-        plt.plot(p_switches[:,i], label=f"switch{i}", color=f"C{i}")
-    plt.ylim([0.5,0.52])
-    return
-
-
+    
 def parse_data_size(experiment_filepath):
     if len(experiment_filepath) > 1:
         print("Warning: only first experiment file will be plotted")

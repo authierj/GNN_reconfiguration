@@ -81,9 +81,6 @@ class GatedSwitchGNN(nn.Module):
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
 
-        test_switch = s[0, :, :, 0]  # problem here!
-
-        test_switch = s[0, :, :, 0]  # problem here!
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
         n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2

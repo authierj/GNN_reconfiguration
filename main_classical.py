@@ -175,7 +175,7 @@ def main(args):
     print(
         "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
         "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
-            stats["valid_loos"][-1] / run_counter,
+            stats["valid_loss"][-1],
             stats["valid_dispatch_error_mean"][-1],
             stats["valid_topology_error_mean"][-1],
             stats["valid_ineq_mean"][-1],
