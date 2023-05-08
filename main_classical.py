@@ -54,9 +54,7 @@ def main(args):
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
-    output_dim = utils.M + utils.N + utils.numSwitches
-
-    model = getattr(classical_gnn, args["model"])(args, utils.N, output_dim, utils)
+    model = getattr(classical_gnn, args["model"])(args, utils)
     model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
