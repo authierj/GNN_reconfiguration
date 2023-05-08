@@ -151,7 +151,7 @@ def main(args):
                         )
                     )
         else:
-            stats = train_epoch_stats
+            stats = valid_epoch_stats
 
         if i % args["resultsSaveFreq"] == 0 and (
             args["saveModel"] or args["saveAllStats"]
@@ -169,6 +169,7 @@ def main(args):
     total_time_end = time.time()
     total_time = total_time_end - total_time_start
     print(f"Total time: {total_time:.4f}")
+
 
     print(
         "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"

@@ -119,7 +119,7 @@ class Utils:
         qij, _, _ = self.decompose_vars_zc_JA(zc)
 
         fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
-        prob_push = torch.sum(topology * (topology -1), dim=1)
+        prob_push = torch.sum(topology**2 * (topology -1)**2, dim=1)
         return fncval + 100 * prob_push
 
     def PhyR(self, s, n_switches):

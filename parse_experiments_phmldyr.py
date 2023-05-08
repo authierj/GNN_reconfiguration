@@ -181,13 +181,13 @@ def parse_NN_size(experiment_filepath):
             exp_stats["V_topology_mean_var"] = np.var(
                 exp_stats["V_topology_mean_var"], axis=0
             )
-            plt.figure(40)
+            plt.figure(80)
             p_switches = exp_stats["V_pswitch"]
             for i in range(p_switches.shape[1]):
                 plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
                 plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
-            plt.title('4')
+            plt.title('8')
 
             plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
 
