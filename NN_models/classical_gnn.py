@@ -168,7 +168,7 @@ class GCN_local_MLP(nn.Module):
 
 
 class GNN_global_MLP(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, N, output_dim, utils):
         super().__init__()
         self.GNN = GNN(args)
         self.readout = GlobalMLP_reduced(args, N, output_dim)
