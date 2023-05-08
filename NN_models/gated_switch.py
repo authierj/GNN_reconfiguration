@@ -59,7 +59,7 @@ class GatedSwitchesEncoder(nn.Module):
 
 
 class GatedSwitchGNN(nn.Module):
-    def __init__(self, args, N, output_dim, utils):
+    def __init__(self, args, utils):
         super().__init__()
         self.Encoder = GatedSwitchesEncoder(args)
         self.SMLP = SMLP(
@@ -160,10 +160,11 @@ class GatedSwitchGNN(nn.Module):
 
 
 class GatedSwitchGNN_globalMLP(nn.Module):
-    def __init__(self, args, N, output_dim, utils):
+    def __init__(self, args, utils):
         super().__init__()
+        output_dim = utils.M + utils.N + utils.numSwitches
         self.Encoder = GatedSwitchesEncoder(args)
-        self.MLP = GlobalMLP_reduced_switch(args, N, output_dim)
+        self.MLP = GlobalMLP_reduced_switch(args, utils.N, output_dim)
         self.device = args["device"]
         self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":

@@ -49,7 +49,7 @@ else:
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-num_runs = 1
+num_runs = 2
 
 if os.path.exists(filepath):
     print("this file already exists and will be completed with new results")

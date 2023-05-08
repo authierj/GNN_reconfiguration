@@ -11,10 +11,11 @@ import utils_JA
 
 
 class GCN_Global_MLP_reduced_model(nn.Module):
-    def __init__(self, args, N, output_dim, utils):
+    def __init__(self, args, utils):
         super().__init__()
+        output_dim = utils.M + utils.N + utils.numSwitches
         self.GNN = GCN(args)
-        self.readout = GlobalMLP_reduced(args, N, output_dim)
+        self.readout = GlobalMLP_reduced(args, utils.N, output_dim)
         self.device = args["device"]
         self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
@@ -63,7 +64,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
 
 
 class GCN_local_MLP(nn.Module):
-    def __init__(self, args, N, output_dim, utils):
+    def __init__(self, args, utils):
         super().__init__()
         self.GNN = GCN(args)
         self.SMLP = SMLP(
@@ -168,10 +169,11 @@ class GCN_local_MLP(nn.Module):
 
 
 class GNN_global_MLP(nn.Module):
-    def __init__(self, args, N, output_dim, utils):
+    def __init__(self, args, utils):
         super().__init__()
+        output_dim = utils.M + utils.N + utils.numSwitches
         self.GNN = GNN(args)
-        self.readout = GlobalMLP_reduced(args, N, output_dim)
+        self.readout = GlobalMLP_reduced(args, utils.N, output_dim)
         self.device = args["device"]
         self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
@@ -220,7 +222,7 @@ class GNN_global_MLP(nn.Module):
 
 
 class GNN_local_MLP(nn.Module):
-    def __init__(self, args, N, output_dim, utils):
+    def __init__(self, args, utils):
         super().__init__()
         self.GNN = GNN(args)
         self.SMLP = SMLP(
@@ -325,10 +327,11 @@ class GNN_local_MLP(nn.Module):
 
 
 class GCN_Global_MLP(nn.Module):
-    def __init__(self, args, N, output_dim):
+    def __init__(self, args, utils):
         super().__init__()
+        output_dim = utils.M + utils.N + utils.numSwitches
         self.GNN = GCN(args)
-        self.readout = GlobalMLP(args, N, output_dim)
+        self.readout = GlobalMLP(args, utils.N, output_dim)
 
     def forward(self, data, utils):
         # input of Rabab's NN
