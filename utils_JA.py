@@ -587,7 +587,7 @@ def default_args():
     defaults["resultsSaveFreq"] = 50
     defaults["topoLoss"] = False
     defaults["topoWeight"] = 100
-    defaults["aggregation"] = "max"
+    defaults["aggregation"] = "mean"
     defaults["norm"] = "batch"
     defaults["corrEps"] = 1e-3
     defaults["switchActivation"] = "sig"

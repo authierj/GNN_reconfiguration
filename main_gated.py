@@ -84,6 +84,7 @@ def main(args):
             model.__class__.__name__,
             "_".join(
                 [
+                    f'{args["aggregation"]}',
                     f'{args["numLayers"]}',
                     f'{args["hiddenFeatures"]}',
                     f'{args["lr"]:.0e}',
