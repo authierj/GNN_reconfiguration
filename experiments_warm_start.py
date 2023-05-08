@@ -31,6 +31,8 @@ parser.add_argument("--topoLoss", action="store_true")
 
 exp_args = vars(parser.parse_args())
 args = default_args()
+args["lr"] = 5*1e-4
+args['epochs'] = 1000
 
 for key, value in exp_args.items():
     args[key] = value
