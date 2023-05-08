@@ -119,8 +119,7 @@ class Utils:
         qij, _, _ = self.decompose_vars_zc_JA(zc)
 
         fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
-        prob_push = torch.sum(topology**2 * (topology -1)**2, dim=1)
-        return fncval + 100 * prob_push
+        return fncval
 
     def PhyR(self, s, n_switches):
         """
@@ -318,6 +317,23 @@ class Utils:
 
         return violated_resid
 
+    def prob_push(self, z):
+        """
+        prob_push returns a cost that pushes the switches towards zero or one probabilities and pushes the right number of switches to be closed the number of switches
+
+        args:
+            z: the output of the neural network
+        return:
+            push: the cost that pushes the switches towards zero or one probabilities and pushes the right number of switches to be closed the number of switches
+        """
+
+        _, _, topology = self.decompose_vars_z_JA(z)
+
+        push_speed = torch.sum(-topology  * (topology - 1) , dim=1)
+        physic_informed = (torch.sum(topology, dim=1) - (self.N - 1)) ** 2 
+        push = push_speed + physic_informed
+        return push
+    
     def cross_entropy_loss_topology(self, z, y, switch_mask):
         """
         cross_entropy_loss_topology returns the cross entropy loss between the topology chosen by the neural network and the reference topology
@@ -538,9 +554,11 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
         ineq_dist, dim=1
     )  # gives norm for scalar weight
 
+    prob_cost = utils.prob_push(z) 
+
     soft_weight = args["softWeight"]
 
-    total_loss = obj_cost + soft_weight * ineq_cost
+    total_loss = obj_cost + soft_weight * ineq_cost + soft_weight * prob_cost
     return total_loss, soft_weight
 
 
