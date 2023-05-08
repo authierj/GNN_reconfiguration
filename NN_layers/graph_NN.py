@@ -190,7 +190,7 @@ class GatedSwitchesLayer(nn.Module):
         Vh = Vh_masked + Vh_switches
 
         if self.aggregation == "mean":
-            return torch.sum(Vh, dim=2) / torch.sum(1 - (A + S), dim=2).unsqueeze(
+            return torch.sum(Vh, dim=2) / torch.sum(1 - (A.int() + S.int()), dim=2).unsqueeze(
                 -1
             ).type_as(Vh)
 

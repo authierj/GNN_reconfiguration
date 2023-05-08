@@ -13,12 +13,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--model",
     type=str,
-    default="GCN_local_MLP",
+    default="GatedSwitchGNN",
     choices=[
         "GCN_Global_MLP_reduced_model",
         "GCN_local_MLP",
         "GatedSwitchGNN_globalMLP",
         "GatedSwitchGNN",
+        "GNN_global_MLP",
+        "GNN_local_MLP",
     ],
     help="model to train",
 )
@@ -31,8 +33,8 @@ parser.add_argument("--topoLoss", action="store_true")
 
 exp_args = vars(parser.parse_args())
 args = default_args()
-args["lr"] = 5*1e-4
-args['epochs'] = 1000
+args["lr"] = 5 * 1e-4
+args["epochs"] = 1000
 
 for key, value in exp_args.items():
     args[key] = value
@@ -53,7 +55,12 @@ if os.path.exists(filepath):
     print("this file already exists and will be completed with new results")
 
 for i in range(0, num_runs):
-    if args["model"] in ["GCN_Global_MLP_reduced_model", "GCN_local_MLP"]:
+    if args["model"] in [
+        "GCN_Global_MLP_reduced_model",
+        "GCN_local_MLP",
+        "GNN_global_MLP",
+        "GNN_local_MLP",
+    ]:
         result_dir = main_classical.main(args)
     else:
         result_dir = main_gated.main(args)
