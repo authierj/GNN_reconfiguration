@@ -80,7 +80,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "warmStart_mod_PhyR",
+            "test_push_cost",
             model.__class__.__name__,
             "_".join(
                 [
