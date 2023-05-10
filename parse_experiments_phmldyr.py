@@ -11,7 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["test_prob_PhyR"]
+    exp_names = ["test_push_cost_PhyR"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -69,7 +69,7 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("test_prob_PhyR")+15 : line.find("/v")-10]
+                        exp_nn = line[line.find("test_push_cost")+15 : line.find("/v")-10]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
@@ -181,13 +181,13 @@ def parse_NN_size(experiment_filepath):
             exp_stats["V_topology_mean_var"] = np.var(
                 exp_stats["V_topology_mean_var"], axis=0
             )
-            plt.figure(40)
+            plt.figure(80)
             p_switches = exp_stats["V_pswitch"]
             for i in range(p_switches.shape[1]):
                 plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
                 plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
-            plt.title('4')
+            plt.title('8')
 
             plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
 
@@ -285,7 +285,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
     plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
     plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
-    # plt.ylim([0,4/7+0.01])
+    plt.ylim([0,4/7+0.01])
 
     plt.figure(5)  # V ineq error violation
     plt.plot(exp_stats["V_ineq_num_viol_0"]/ run_counter)

@@ -11,7 +11,8 @@ import os
 from utils_JA import Utils
 from utils_JA import total_loss, dict_agg
 from NN_layers import readout
-from datasets.graphdataset import GraphDataSet
+# from datasets.graphdataset import GraphDataSet
+import datasets.graphdataset as graphdataset
 import NN_models.classical_gnn as classical_gnn
 
 
@@ -24,13 +25,12 @@ def main(args):
     return:
         save_dir: directory where the results are stored
     """
-    torch.autograd.set_detect_anomaly(True)
     total_time_start = time.time()
     # Making the code device-agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args["device"] = device
     print("Using device: ", device)
-    dataset_name = args["network"] + "_" + "dataset_test"
+    dataset_name = args["network"] + "_" + "dataset_test_2"
     filepath = os.path.join("datasets", args["network"], "processed", dataset_name)
 
     try:
@@ -40,7 +40,7 @@ def main(args):
         print("Network file does not exist")
 
     utils = Utils(data, device)
-    graph_dataset = GraphDataSet(root="datasets/" + args["network"])
+    graph_dataset = graphdataset.GraphDataSet(root="datasets/" + args["network"])
     graph_dataset.data.to(device)
 
     # TODO change to arguments so that we can use different networks directly
@@ -69,7 +69,7 @@ def main(args):
     if args["topoLoss"]:
         save_dir = os.path.join(
             "results",
-            "test_topo_prob_PhyR",
+            "supervised_back_PhyR",
             model.__class__.__name__,
             "_".join(
                 [

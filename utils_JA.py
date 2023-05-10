@@ -6,7 +6,7 @@ from torch.autograd import Function
 
 class Utils:
     def __init__(self, data, device):
-        self.A = data.A.to(device)
+        self.A = data.A.to(device) #incidence matrix
         self.M = data.M
         self.N = data.N
         self.numSwitches = data.numSwitches
@@ -23,11 +23,6 @@ class Utils:
         self.Rall = data.Rall.to(device)
         self.vUpp = data.vUpp.to(device)
         self.vLow = data.vLow.to(device)
-        self.Aabs = data.Aabs
-        self.dineq_dz_fullmat = data.dineq_dz_fullmat
-        self.dzc_dz_mat = data.dzc_dz_mat
-        self.dzc_dz = data.dzc_dz
-        self.dzc_dx = data.dzc_dx
         self.S = data.S
         self.Adj = data.Adj
         self.D_inv = data.D_inv.to(device)
