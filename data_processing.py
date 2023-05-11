@@ -120,7 +120,7 @@ class OPTreconfigure:
         self.bigM = bigM
 
         self._xdim = 2 * (N - 1)  # x
-        self._zdim = N + M + numSwitches  # only z
+        self._zdim = N + 2 * M  # only z
         self._zcdim = M + 2 * N  # only zc
         self._ydim = self._zdim + self._zcdim  # z, zc
         self._num = self._x.shape[0]  # number of test cases

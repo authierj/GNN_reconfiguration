@@ -11,6 +11,7 @@ import os
 from utils_JA import Utils
 from utils_JA import total_loss, dict_agg
 from NN_layers import readout
+
 # from datasets.graphdataset import GraphDataSet
 import datasets.graphdataset as graphdataset
 import NN_models.classical_gnn as classical_gnn
@@ -240,9 +241,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         ineq_resid = utils.ineq_resid_JA(
             z_hat.detach(), zc_hat.detach(), data.idx, utils.A
         )
-        topology_dist = utils.opt_topology_dist_JA(
-            z_hat.detach(), data.y.detach(), data.switch_mask.detach()
-        )
+        topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         # fmt: off
         dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
@@ -311,9 +310,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         ineq_resid = utils.ineq_resid_JA(
             z_hat.detach(), zc_hat.detach(), data.idx, utils.A
         )
-        topology_dist = utils.opt_topology_dist_JA(
-            z_hat.detach(), data.y.detach(), data.switch_mask.detach()
-        )
+        topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         dict_agg(
             epoch_stats,

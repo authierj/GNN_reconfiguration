@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import pickle
 import argparse
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader, DenseDataLoader
 import time
 import os
 
@@ -49,9 +49,9 @@ def main(args):
     test_graphs = graph_dataset[3600:4000]
 
     batch_size = args["batchSize"]
-    train_loader = DataLoader(train_graphs, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
+    train_loader = DenseDataLoader(train_graphs, batch_size=batch_size, shuffle=True)
+    valid_loader = DenseDataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
+    test_loader = DenseDataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
     output_dim = utils.M + utils.N + utils.numSwitches

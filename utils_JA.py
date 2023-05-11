@@ -6,7 +6,7 @@ from torch.autograd import Function
 
 class Utils:
     def __init__(self, data, device):
-        self.A = data.A.to(device) #incidence matrix
+        self.A = data.A.to(device)  # incidence matrix
         self.M = data.M
         self.N = data.N
         self.numSwitches = data.numSwitches
@@ -276,11 +276,11 @@ class Utils:
         pij, v, topology = self.decompose_vars_z_JA(z)
         qij, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        pg_upp_resid = pg[:, 1::] - self.pgUpp[idx, :]
-        pg_low_resid = self.pgLow[idx, :] - pg[:, 1::]
+        pg_upp_resid = pg[:, 1::] - self.pgUpp[idx, 1::]
+        pg_low_resid = self.pgLow[idx, 1::] - pg[:, 1::]
 
-        qg_upp_resid = qg[:, 1::] - self.qgUpp[idx, :]
-        qg_low_resid = self.qgLow[idx, :] - qg[:, 1::]
+        qg_upp_resid = qg[:, 1::] - self.qgUpp[idx, 1::]
+        qg_low_resid = self.qgLow[idx, 1::] - qg[:, 1::]
 
         v_upp_resid = v - self.vUpp
         v_low_resid = self.vLow - v
@@ -363,7 +363,7 @@ class Utils:
         distance = criterion(switch_decision, y)
         return torch.sum(distance, dim=1)
 
-    def opt_topology_dist_JA(self, z, y, switch_mask):
+    def opt_topology_dist_JA(self, z, y):
         """
         opt_dispatch_dist_JA returns the squared distance between the topology chosen by the neural network and the reference topology
 
@@ -376,17 +376,13 @@ class Utils:
             delta_topo: the squared distance between the topology chosen by the neural network and the reference topology
         """
 
-        _, opt_y_no_last, _, _, _, _, _, _, _ = self.decompose_vars_z(
-            y[:, : self.zrdim]
-        )
-        _, y_last, _, _, _ = self.decompose_vars_zc(y[:, self.zrdim : :])
+        opt_pij, opt_v, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
+        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : ])
 
-        y = torch.cat((opt_y_no_last, y_last.view(-1, 1)), dim=1)
 
         _, _, topology = self.decompose_vars_z_JA(z)
 
-        switch_decision = topology[switch_mask].reshape_as(y)
-        delta_topo = torch.square(switch_decision - y)
+        delta_topo = torch.square(topology - opt_topo)
 
         sum = torch.sum(delta_topo, dim=1)
         max = torch.max(torch.sum(delta_topo, dim=1))
@@ -409,31 +405,15 @@ class Utils:
             dispatch_resid: the squared distance between the output of the neural network and the completion variable from the refernce solution
         """
 
-        (
-            _,
-            opt_y_no_last,
-            opt_pij,
-            opt_pji,
-            opt_qij,
-            opt_qji_sw,
-            opt_v,
-            opt_plf,
-            opt_qlf,
-        ) = self.decompose_vars_z(y[:, : self.zrdim])
-        _, y_last, opt_qji_nosw, opt_pg, opt_qg = self.decompose_vars_zc(
-            y[:, self.zrdim : :]
-        )
-        opt_qji = torch.concat((opt_qji_nosw, opt_qji_sw), dim=1)
-        opt_pg[:, 0] = opt_pg[:, 0] - opt_plf
-        opt_qg[:, 0] = opt_qg[:, 0] - opt_qlf
-        y = torch.cat((opt_y_no_last, y_last.view(-1, 1)), dim=1)
+        opt_pij, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
+        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : :])
 
-        pij, v, topology = self.decompose_vars_z_JA(z)
+        pij, v, _ = self.decompose_vars_z_JA(z)
         qij, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        delta_pij = torch.square(pij - (opt_pij - opt_pji))
-        delta_qij = torch.square(qij - (opt_qij - opt_qji))
-        delta_v = torch.square(v[:, 1::] - opt_v).pow(2)
+        delta_pij = torch.square(pij - opt_pij)
+        delta_qij = torch.square(qij - opt_qij)
+        delta_v = torch.square(v[:, 1:] - opt_v[:, 1:]).pow(2)
         delta_pg = torch.square(pg - opt_pg)
         delta_qg = torch.square(qg - opt_qg)
         # switch_decision = topology[switch_mask].reshape_as(y)
