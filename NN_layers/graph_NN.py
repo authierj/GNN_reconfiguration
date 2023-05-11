@@ -114,16 +114,24 @@ class GatedSwitchesLayer(nn.Module):
             ),
         }.get(self.norm, None)
 
-    def forward(self, h, e, A, S):
+    def forward(self, h, e, ei, si):
         """
         Args:
             h: Input node features (B x V x H)
             e: Input switch features (B x V x V x H)
-            A: Graph adjacency matrices (B x V x V)
-            S: Switch adjacency matrices (B x V x V)
+            ei: Graph adjacency matrices (B x 2 x N-numSwitches)
+            si: Switch adjacency matrices (B x 2 x numSwitches)
         Returns:
             Updated node and edge features
         """
+        S = torch.zeros(
+            (h.shape[0], h.shape[1], h.shape[1]), dtype=torch.bool, device=h.device
+        )
+        A = torch.zeros_like(S)
+
+        S[:, si[:, 0, :], si[:, 1, :]] = True
+        A[:, ei[:, 0, :], ei[:, 1, :]] = True
+
         batch_size, num_nodes, hidden_dim = h.shape
         h_in = h
         e_in = e
@@ -227,16 +235,24 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         self.B = nn.Linear(input_dim, hidden_dim, bias=True)
         self.C = nn.Linear(input_dim, hidden_dim, bias=True)
 
-    def forward(self, h, e, A, S):
+    def forward(self, h, e, ei, si):
         """
         Args:
             h: Input node features (B x V x H)
             e: Input switch features (B x V x V x H)
-            A: Graph adjacency matrices (B x V x V)
-            S: Switch adjacency matrices (B x V x V)
+            ei: Graph adjacency matrices (B x 2 x N-numSwitches)
+            si: Switch adjacency matrices (B x 2 x numSwitches)
         Returns:
             Updated node and edge features
         """
+        S = torch.zeros(
+            (h.shape[0], h.shape[1], h.shape[1]), dtype=torch.bool, device=h.device
+        )
+        A = torch.zeros_like(S)
+
+        S[:, si[:, 0, :], si[:, 1, :]] = True
+        A[:, ei[:, 0, :], ei[:, 1, :]] = True
+        
         batch_size, num_nodes, _ = h.shape
         h_in = h
         e_in = e

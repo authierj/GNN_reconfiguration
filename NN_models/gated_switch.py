@@ -37,23 +37,27 @@ class GatedSwitchesEncoder(nn.Module):
 
         self.layers = nn.ModuleList(layers)
 
-    def forward(self, x, A, S):
+    def forward(self, x, ei, si):
         """
         Args:
             x: Input node features (B x V x H)
-            A: Graph adjacency matrices (B x V x V)
-            S: Switch adjacency matrices (B x V x V)
+            ei: Graph adjacency matrices (B x 2 x N-numSwitches)
+            si: Switch adjacency matrices (B x 2 x numSwitches)
         Returns:
             Updated node features (B x V x H)
             Updated switch features (B x V x V x H)
         """
         # Embed switch features
+        S = torch.zeros(
+            (x.shape[0], x.shape[1], x.shape[1]), dtype=torch.bool, device=x.device
+        )
+        S[:, si[:, 0, :], si[:, 1, :]] = True
         s = self.init_embed_edges(S.type(torch.long))
 
         # print(self.layers)
 
         for layer in self.layers:
-            x, s = layer(x, s, A, S)
+            x, s = layer(x, s, ei, si)
 
         return x, s
 
@@ -79,13 +83,15 @@ class GatedSwitchGNN(nn.Module):
 
     def forward(self, data, utils, warm_start=False):
         # encode
-        x, s = self.Encoder(data.x, data.edge_index, data.switch_index)  # B x N x F, B x N x N x F
+        x, s = self.Encoder(
+            data.x, data.edge_index, data.switch_index
+        )  # B x N x F, B x N x N x F
 
         # decode
 
-
         switches_nodes = torch.nonzero(data.S.triu())
         n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
+
 
         switches = s[
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
@@ -106,7 +112,7 @@ class GatedSwitchGNN(nn.Module):
         p_switch = self.switch_activation(SMLP_out[:, 0])
 
         if warm_start:
-            topology = self.PhyR(p_switch.flatten(), n_switches)
+            topology = self.PhyR(p_switch.flatten(), data.num_sw[0])
         else:
             topology = p_switch.flatten()
 
