@@ -7,7 +7,7 @@ from torch import nn
 class GCN(nn.Module):
     def __init__(self, args):
         super().__init__()
-        #torch.manual_seed(12)
+        # torch.manual_seed(12)
         self.first_conv = GCNConv(args["inputFeatures"], args["hiddenFeatures"])
         self.conv = GCNConv(args["hiddenFeatures"], int(args["hiddenFeatures"]))
         self.dropout = args["dropout"]
@@ -16,7 +16,6 @@ class GCN(nn.Module):
         assert self.layers >= 2, "the minimum number of layers for the GCN is 2"
 
     def forward(self, x, edge_index):
-
         x = self.first_conv(x, edge_index)
         x = x.relu()
         # x = F.dropout(x, p=self.dropout, training=self.training)
@@ -32,16 +31,19 @@ class GCN(nn.Module):
 class GNN(nn.Module):
     def __init__(self, args):
         super().__init__()
-        #torch.manual_seed(12)
-        self.first_conv = GraphConv(args["inputFeatures"], args["hiddenFeatures"], aggr="max")
-        self.conv = GraphConv(args["hiddenFeatures"], args["hiddenFeatures"], aggr="max")
+        # torch.manual_seed(12)
+        self.first_conv = GraphConv(
+            args["inputFeatures"], args["hiddenFeatures"], aggr="max"
+        )
+        self.conv = GraphConv(
+            args["hiddenFeatures"], args["hiddenFeatures"], aggr="max"
+        )
         self.dropout = args["dropout"]
         self.layers = args["numLayers"]
 
         assert self.layers >= 2, "the minimum number of layers for the GNN is 2"
 
     def forward(self, x, edge_index):
-
         x = self.first_conv(x, edge_index)
         x = x.relu()
         # x = F.dropout(x, p=self.dropout, training=self.training)
@@ -52,6 +54,7 @@ class GNN(nn.Module):
             # x = F.dropout(x, p=self.dropout, training=self.training)
 
         return x
+
 
 class GatedSwitchesLayer(nn.Module):
     """Configurable GNN Layer
@@ -129,8 +132,10 @@ class GatedSwitchesLayer(nn.Module):
         )
         A = torch.zeros_like(S)
 
-        S[:, si[:, 0, :], si[:, 1, :]] = True
-        A[:, ei[:, 0, :], ei[:, 1, :]] = True
+        bsi = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
+        S[bsi, si[:, 0, :], si[:, 1, :]] = True
+        bei = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, ei.shape[2])
+        A[bei, ei[:, 0, :], ei[:, 1, :]] = True
 
         batch_size, num_nodes, hidden_dim = h.shape
         h_in = h
@@ -198,9 +203,9 @@ class GatedSwitchesLayer(nn.Module):
         Vh = Vh_masked + Vh_switches
 
         if self.aggregation == "mean":
-            return torch.sum(Vh, dim=2) / torch.sum(1 - (A.int() + S.int()), dim=2).unsqueeze(
-                -1
-            ).type_as(Vh)
+            return torch.sum(Vh, dim=2) / torch.sum(
+                1 - (A.int() + S.int()), dim=2
+            ).unsqueeze(-1).type_as(Vh)
 
         elif self.aggregation == "max":
             return torch.max(Vh, dim=2)[0]
@@ -220,7 +225,6 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         track_norm=False,
         gated=True,
     ):
-
         super(FirstGatedSwitchesLayer, self).__init__(
             hidden_dim,
             aggregation,
@@ -250,9 +254,11 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         )
         A = torch.zeros_like(S)
 
-        S[:, si[:, 0, :], si[:, 1, :]] = True
-        A[:, ei[:, 0, :], ei[:, 1, :]] = True
-        
+        bsi = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
+        S[bsi, si[:, 0, :], si[:, 1, :]] = True
+        bei = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, ei.shape[2])
+        A[bei, ei[:, 0, :], ei[:, 1, :]] = True
+
         batch_size, num_nodes, _ = h.shape
         h_in = h
         e_in = e
@@ -287,9 +293,9 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
 
         # Normalize edge features
         e = (
-            self.norm_e(e.view(batch_size * num_nodes * num_nodes, self.hidden_dim)).view(
-                batch_size, num_nodes, num_nodes, self.hidden_dim
-            )
+            self.norm_e(
+                e.view(batch_size * num_nodes * num_nodes, self.hidden_dim)
+            ).view(batch_size, num_nodes, num_nodes, self.hidden_dim)
             if self.norm_e
             else e
         )
@@ -301,6 +307,3 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         # no residual connection for the first layer due to the change of dimension
 
         return h, e
-
-
-

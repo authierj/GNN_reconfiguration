@@ -51,10 +51,9 @@ class GatedSwitchesEncoder(nn.Module):
         S = torch.zeros(
             (x.shape[0], x.shape[1], x.shape[1]), dtype=torch.bool, device=x.device
         )
-        S[:, si[:, 0, :], si[:, 1, :]] = True
+        bsi = torch.arange(x.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
+        S[bsi, si[:, 0, :], si[:, 1, :]] = True
         s = self.init_embed_edges(S.type(torch.long))
-
-        # print(self.layers)
 
         for layer in self.layers:
             x, s = layer(x, s, ei, si)
@@ -88,22 +87,36 @@ class GatedSwitchGNN(nn.Module):
         )  # B x N x F, B x N x N x F
 
         # decode
-
-        switches_nodes = torch.nonzero(data.S.triu())
-        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
-
+        bsi = (
+            torch.arange(data.switch_index.shape[0])
+            .unsqueeze(1)
+            .repeat(1, data.num_sw[0])
+        )
+        bei = (
+            torch.arange(data.edge_index.shape[0])
+            .unsqueeze(1)
+            .repeat(1, x.shape[1] - data.num_sw[0])
+        )
 
         switches = s[
-            switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
+            bsi,
+            data.switch_index[:, 0, : data.num_sw[0]],
+            data.switch_index[:, 0, data.num_sw[0] :],
+            :,
         ]
-        x_1 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
-        x_2 = x[switches_nodes[:, 0], switches_nodes[:, 2], :]
+        x_1 = x[bsi, data.switch_index[:, 0, : data.num_sw[0]], :]
+        x_2 = x[bsi, data.switch_index[:, 0, data.num_sw[0] :], :]
 
         x_g = torch.sum(x, dim=1)  # B x F
-        x_g_extended = x_g[switches_nodes[:, 0], :]  # dim = num_switches*B x F
+        x_g_extended = x_g[bsi, :]  # dim = num_switches*B x F
 
-        SMLP_input = torch.cat(
-            (switches, x_1, x_2, x_g_extended), dim=1
+        SMLP_input = torch.vstack(
+            (
+                torch.flatten(switches, end_dim=1),
+                torch.flatten(x_1, end_dim=1),
+                torch.flatten(x_2, end_dim=1),
+                torch.flatten(x_g_extended, end_dim=1),
+            )
         )  # num_switches*B x 4F
         SMLP_out = self.SMLP(
             SMLP_input
