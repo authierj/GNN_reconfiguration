@@ -41,7 +41,7 @@ class GatedSwitchesEncoder(nn.Module):
         """
         Args:
             x: Input node features (B x V x H)
-            ei: Graph adjacency matrices (B x 2 x N-numSwitches)
+            ei: Graph adjacency matrices (B x 2 x M-numSwitches)
             si: Switch adjacency matrices (B x 2 x numSwitches)
         Returns:
             Updated node features (B x V x H)
@@ -92,12 +92,6 @@ class GatedSwitchGNN(nn.Module):
             .unsqueeze(1)
             .repeat(1, data.num_sw[0])
         )
-        bei = (
-            torch.arange(data.edge_index.shape[0])
-            .unsqueeze(1)
-            .repeat(1, x.shape[1] - data.num_sw[0])
-        )
-
         switches = s[
             bsi,
             data.switch_index[:, 0, : data.num_sw[0]],
@@ -110,7 +104,7 @@ class GatedSwitchGNN(nn.Module):
         x_g = torch.sum(x, dim=1)  # B x F
         x_g_extended = x_g[bsi, :]  # dim = num_switches*B x F
 
-        SMLP_input = torch.vstack(
+        SMLP_input = torch.hstack(
             (
                 torch.flatten(switches, end_dim=1),
                 torch.flatten(x_1, end_dim=1),
@@ -130,48 +124,59 @@ class GatedSwitchGNN(nn.Module):
             topology = p_switch.flatten()
 
         graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
-        graph_topo[data.switch_mask] = topology.float()
+        graph_topo[:, -data.num_sw[0] :] = topology.float().view((x.shape[0], -1))
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        ps_flow[data.switch_mask] = SMLP_out[:, 1]
+        ps_flow[:, -data.num_sw[0] :] = SMLP_out[:, 1].view((x.shape[0], -1))
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_parent[data.switch_mask] = SMLP_out[:, 2]
+        vs_parent[:, -data.num_sw[0] :] = SMLP_out[:, 2].view((x.shape[0], -1))
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_child[data.switch_mask] = SMLP_out[:, 3]
+        vs_child[:, -data.num_sw[0] :] = SMLP_out[:, 3].view((x.shape[0], -1))
 
-        nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
+        bei = (
+            torch.arange(data.edge_index.shape[0])
+            .unsqueeze(1)
+            .repeat(1, int(data.edge_index.shape[2] / 2))
+        )
 
-        x_begin = x[nodes[:, 0], nodes[:, 1], :]
-        x_end = x[nodes[:, 0], nodes[:, 2], :]
-        x_g_extended = x_g[nodes[:, 0], :]
+        x_begin = x[bei, data.edge_index[:, 0, : utils.M - data.num_sw[0]], :]
+        x_end = x[bei, data.edge_index[:, 1, utils.M - data.num_sw[0] :], :]
+        x_g_extended = x_g[bei, :]
 
-        CMLP_input = torch.cat((x_begin, x_end, x_g_extended), dim=1)
+        CMLP_input = torch.cat(
+            (
+                torch.flatten(x_begin, end_dim=1),
+                torch.flatten(x_end, end_dim=1),
+                torch.flatten(x_g_extended, end_dim=1),
+            ),
+            dim=1,
+        )
         CMLP_out = self.CMLP(
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        pc_flow[~data.switch_mask] = CMLP_out[:, 0]
+        pc_flow[:, : -data.num_sw[0]] = CMLP_out[:, 0].view(200,-1)
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[~data.switch_mask] = CMLP_out[:, 1]
+        vc_parent[:, : -data.num_sw[0]] = CMLP_out[:, 1].view(200,-1)
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[~data.switch_mask] = CMLP_out[:, 2]
+        vc_child[:, : -data.num_sw[0]] = CMLP_out[:, 2].view(200,-1)
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
         v = (
-            data.D_inv
-            @ data.Incidence_parent.float()
+            utils.D_inv.float()
+            @ utils.Incidence_parent.float()
             @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + data.D_inv
-            @ data.Incidence_child.float()
+            + utils.D_inv.float()
+            @ utils.Incidence_child.float()
             @ (vc_child + vs_child).unsqueeze(2).float()
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x_mod, v, p_flow, graph_topo, data.Incidence
+            data.x, v, p_flow, graph_topo, utils.A
         )
 
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)

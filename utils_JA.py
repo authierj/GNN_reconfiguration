@@ -272,11 +272,12 @@ class Utils:
         return:
             violated_resids: the value of the violation of the inequality constraints
         """
+        idx = torch.squeeze(idx)
 
         pij, v, topology = self.decompose_vars_z_JA(z)
         qij, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        pg_upp_resid = pg[:, 1::] - self.pgUpp[idx, 1::]
+        pg_upp_resid = pg[:, 1:] - self.pgUpp[idx, 1:]
         pg_low_resid = self.pgLow[idx, 1::] - pg[:, 1::]
 
         qg_upp_resid = qg[:, 1::] - self.qgUpp[idx, 1::]

@@ -29,7 +29,7 @@ def main(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args["device"] = device
     print("Using device: ", device)
-    dataset_name = args["network"] + "_" + "dataset_test"
+    dataset_name = args["network"] + "_" + "dataset_test_2"
     # filepath = "datasets/" + args["network"] + "/processed/" + dataset_name
     filepath = os.path.join("datasets", args["network"], "processed", dataset_name)
 
@@ -225,9 +225,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         ineq_resid = utils.ineq_resid_JA(
             z_hat.detach(), zc_hat.detach(), data.idx, utils.A
         )
-        topology_dist = utils.opt_topology_dist_JA(
-            z_hat.detach(), data.y.detach(), data.switch_mask.detach()
-        )
+        topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         # fmt: off
         dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
@@ -295,9 +293,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         ineq_resid = utils.ineq_resid_JA(
             z_hat.detach(), zc_hat.detach(), data.idx, utils.A
         )
-        topology_dist = utils.opt_topology_dist_JA(
-            z_hat.detach(), data.y.detach(), data.switch_mask.detach()
-        )
+        topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         dict_agg(
             epoch_stats,
