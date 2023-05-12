@@ -37,7 +37,7 @@ class GatedSwitchesEncoder(nn.Module):
 
         self.layers = nn.ModuleList(layers)
 
-    def forward(self, x, ei, si):
+    def forward(self, x, A, S):
         """
         Args:
             x: Input node features (B x V x H)
@@ -48,15 +48,10 @@ class GatedSwitchesEncoder(nn.Module):
             Updated switch features (B x V x V x H)
         """
         # Embed switch features
-        S = torch.zeros(
-            (x.shape[0], x.shape[1], x.shape[1]), dtype=torch.bool, device=x.device
-        )
-        bsi = torch.arange(x.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
-        S[bsi, si[:, 0, :], si[:, 1, :]] = True
-        s = self.init_embed_edges(S.type(torch.long))
+        s = self.init_embed_edges(S.to_dense().type(torch.long))
 
         for layer in self.layers:
-            x, s = layer(x, s, ei, si)
+            x, s = layer(x, s, A, S)
 
         return x, s
 
@@ -82,10 +77,33 @@ class GatedSwitchGNN(nn.Module):
 
     def forward(self, data, utils, warm_start=False):
         # encode
-        x, s = self.Encoder(
-            data.x, data.edge_index, data.switch_index
-        )  # B x N x F, B x N x N x F
+        # bsi = (
+        #     torch.arange(data.switch_index.shape[0])
+        #     .unsqueeze(1)
+        #     .repeat(1, 2 * data.num_sw[0])
+        #     .unsqueeze(1)
+        # )
+        # bei = (
+        #     torch.arange(data.edge_index.shape[0])
+        #     .unsqueeze(1)
+        #     .repeat(1, int(data.edge_index.shape[2]))
+        #     .unsqueeze(1)
+        # )
+        # switch_index_batch = torch.cat((bsi.transpose(0,1), data.switch_index.transpose(0,1)), dim=0)
+        # edge_index_batch = torch.cat((bei.transpose(0,1), data.edge_index.transpose(0,1)), dim=0)
+        # n = data.x.shape[1]
+        # b = data.x.shape[0]
 
+        # S = torch.sparse_coo_tensor(
+        #     switch_index_batch.view(3,-1), torch.ones((b * switch_index_batch.shape[2])), (b, n, n)
+        # )
+
+        # A = torch.sparse_coo_tensor(
+        #     edge_index_batch.view(3,-1), torch.ones((b * edge_index_batch.shape[2])), (b, n, n)
+        # )
+        x, s = self.Encoder(data.x, data.A, data.S)  # B x N x F, B x N x N x F
+
+        """
         # decode
         bsi = (
             torch.arange(data.switch_index.shape[0])
@@ -156,11 +174,90 @@ class GatedSwitchGNN(nn.Module):
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        pc_flow[:, : -data.num_sw[0]] = CMLP_out[:, 0].view(200,-1)
+        pc_flow[:, : -data.num_sw[0]] = CMLP_out[:, 0].view(200, -1)
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[:, : -data.num_sw[0]] = CMLP_out[:, 1].view(200,-1)
+        vc_parent[:, : -data.num_sw[0]] = CMLP_out[:, 1].view(200, -1)
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[:, : -data.num_sw[0]] = CMLP_out[:, 2].view(200,-1)
+        vc_child[:, : -data.num_sw[0]] = CMLP_out[:, 2].view(200, -1)
+
+        p_flow = ps_flow + pc_flow
+        # first_mul = data.D_inv @ data.Incidence_parent
+        # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
+        v = (
+            utils.D_inv.float()
+            @ utils.Incidence_parent.float()
+            @ (vc_parent + vs_parent).unsqueeze(2).float()
+            + utils.D_inv.float()
+            @ utils.Incidence_child.float()
+            @ (vc_child + vs_child).unsqueeze(2).float()
+        ).squeeze()
+        v[:, 0] = 1  # V_PCC = 1
+
+        pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
+            data.x, v, p_flow, graph_topo, utils.A
+        )
+
+        z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
+        zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
+        """
+
+        S = data.S
+
+        switches_nodes = torch.nonzero(data.S.triu())
+        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
+
+        switches = s[
+            switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
+        ]
+        x_1 = x[switches_nodes[:, 0], switches_nodes[:, 1], :]
+        x_2 = x[switches_nodes[:, 0], switches_nodes[:, 2], :]
+
+        x_g = torch.sum(x, dim=1)  # B x F
+        x_g_extended = x_g[switches_nodes[:, 0], :]  # dim = num_switches*B x F
+
+        SMLP_input = torch.cat(
+            (switches, x_1, x_2, x_g_extended), dim=1
+        )  # num_switches*B x 4F
+        SMLP_out = self.SMLP(
+            SMLP_input
+        )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
+
+        p_switch = self.switch_activation(SMLP_out[:, 0])
+
+        if warm_start:
+            topology = self.PhyR(p_switch.flatten(), n_switches)
+        else:
+            topology = p_switch.flatten()
+
+        # graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
+        # graph_topo[data.switch_mask] = topology.float()
+
+        graph_topo = torch.hstack((torch.zeros((200, utils.M - utils.numSwitches)), topology.view((x.shape[0], -1))))
+
+        ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
+        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1))
+        vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
+        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((x.shape[0], -1))
+        vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
+        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((x.shape[0], -1))
+
+        nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
+
+        x_begin = x[nodes[:, 0], nodes[:, 1], :]
+        x_end = x[nodes[:, 0], nodes[:, 2], :]
+        x_g_extended = x_g[nodes[:, 0], :]
+
+        CMLP_input = torch.cat((x_begin, x_end, x_g_extended), dim=1)
+        CMLP_out = self.CMLP(
+            CMLP_input
+        )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
+
+        pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
+        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((x.shape[0], -1))
+        vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
+        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((x.shape[0], -1))
+        vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
+        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((x.shape[0], -1))
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent

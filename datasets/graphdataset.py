@@ -103,34 +103,13 @@ class GraphDataSet(InMemoryDataset):
         for i in range(y.shape[0]):
             # features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
             graph = MyGraph(
-                x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :], num_sw=numSwitches
+                x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :]
             )
             data_list.append(graph)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
         # could also maybe save the slices sperately, could be useful for graphs of multiple sizes
-
-
-# class SwitchGraph(Graph):
-#     "define Graphs with batches in a new dimension as in PyTorch"
-
-#     def __cat_dim__(self, key, value, *args, **kwargs):
-#         if key in [
-#             "x_mod",
-#             "A",
-#             "S",
-#             "Incidence",
-#             "Incidence_parent",
-#             "Incidence_child",
-#             "switch_mask",
-#             "D_inv",
-#             "y",
-#         ]:
-#             return None
-#         else:
-#             return super().__cat_dim__(key, value, *args, **kwargs)
-
 
 class GraphDataSetWithSwitches(InMemoryDataset):
     def __init__(self, root="datasets/node4"):
@@ -212,12 +191,12 @@ class GraphDataSetWithSwitches(InMemoryDataset):
         reversed_edges_sw = np.flip(edges_sw, axis=0)
         bi_edges_sw = from_np(np.hstack((edges_sw, reversed_edges_sw))).long()
 
-        # A = torch.sparse_coo_tensor(
-        #     bi_edges_no_sw, torch.ones(bi_edges_no_sw.shape[1]), (n, n)
-        # )
-        # S = torch.sparse_coo_tensor(
-        #     bi_edges_no_sw, torch.ones(bi_edges_no_sw.shape[1]), (n, n)
-        # )
+        A = torch.sparse_coo_tensor(
+            bi_edges_no_sw, torch.ones(bi_edges_no_sw.shape[1]), (n, n)
+        )
+        S = torch.sparse_coo_tensor(
+            bi_edges_sw, torch.ones(bi_edges_sw.shape[1]), (n, n)
+        )
 
         z = solutions[0]
         zc = solutions[1]
@@ -231,11 +210,10 @@ class GraphDataSetWithSwitches(InMemoryDataset):
         for i in range(y.shape[0]):
             graph = MyGraph(
                 x=x[i, :, :],
-                edge_index=bi_edges_no_sw,
-                switch_index=bi_edges_sw,
+                A=A.to_dense().bool(),
+                S=S.to_dense().bool(),
                 idx=i,
                 y=y[i, :],
-                num_sw=numSwitches,
             )
             data_list.append(graph)
         data, slices = self.collate(data_list)

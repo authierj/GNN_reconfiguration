@@ -117,7 +117,7 @@ class GatedSwitchesLayer(nn.Module):
             ),
         }.get(self.norm, None)
 
-    def forward(self, h, e, ei, si):
+    def forward(self, h, e, A, S):
         """
         Args:
             h: Input node features (B x V x H)
@@ -127,15 +127,8 @@ class GatedSwitchesLayer(nn.Module):
         Returns:
             Updated node and edge features
         """
-        S = torch.zeros(
-            (h.shape[0], h.shape[1], h.shape[1]), dtype=torch.bool, device=h.device
-        )
-        A = torch.zeros_like(S)
-
-        bsi = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
-        S[bsi, si[:, 0, :], si[:, 1, :]] = True
-        bei = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, ei.shape[2])
-        A[bei, ei[:, 0, :], ei[:, 1, :]] = True
+        A = A.to_dense()
+        S = S.to_dense()
 
         batch_size, num_nodes, hidden_dim = h.shape
         h_in = h
@@ -239,7 +232,7 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         self.B = nn.Linear(input_dim, hidden_dim, bias=True)
         self.C = nn.Linear(input_dim, hidden_dim, bias=True)
 
-    def forward(self, h, e, ei, si):
+    def forward(self, h, e, A, S):
         """
         Args:
             h: Input node features (B x V x H)
@@ -249,15 +242,18 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         Returns:
             Updated node and edge features
         """
-        S = torch.zeros(
-            (h.shape[0], h.shape[1], h.shape[1]), dtype=torch.bool, device=h.device
-        )
-        A = torch.zeros_like(S)
+        # S = torch.zeros(
+        #     (h.shape[0], h.shape[1], h.shape[1]), dtype=torch.bool, device=h.device
+        # )
+        # A = torch.zeros_like(S)
 
-        bsi = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
-        S[bsi, si[:, 0, :], si[:, 1, :]] = True
-        bei = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, ei.shape[2])
-        A[bei, ei[:, 0, :], ei[:, 1, :]] = True
+        # bsi = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, si.shape[2])
+        # S[bsi, si[:, 0, :], si[:, 1, :]] = True
+        # bei = torch.arange(ei.shape[0]).unsqueeze(1).repeat(1, ei.shape[2])
+        # A[bei, ei[:, 0, :], ei[:, 1, :]] = True
+
+        A = A.to_dense()
+        S = S.to_dense()
 
         batch_size, num_nodes, _ = h.shape
         h_in = h
@@ -274,9 +270,9 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
 
         # Update switch features and compute switch gates (S acts as a mask)
         e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H
-        test_e = e[0, :, :, 0]
+        # test_e = e[0, :, :, 0]
         gates = S.unsqueeze(3) * torch.sigmoid(e)  # B x V x V x H
-        test_gates = gates[0, :, :, 0]
+        # test_gates = gates[0, :, :, 0]
 
         # Update node features
         h = Uh + self.aggregate(Vh, A, S, gates)  # B x V x H
@@ -294,7 +290,7 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         # Normalize edge features
         e = (
             self.norm_e(
-                e.view(batch_size * num_nodes * num_nodes, self.hidden_dim)
+                e.to_dense().view(batch_size * num_nodes * num_nodes, self.hidden_dim)
             ).view(batch_size, num_nodes, num_nodes, self.hidden_dim)
             if self.norm_e
             else e
