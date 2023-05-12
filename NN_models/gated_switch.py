@@ -103,6 +103,14 @@ class GatedSwitchGNN(nn.Module):
         # )
         x, s = self.Encoder(data.x, data.A, data.S)  # B x N x F, B x N x N x F
 
+        # cum_sw = torch.hstack((torch.zeros((1)), torch.cumsum(data.numSwitches, dim=0).squeeze()))
+
+        # small_mask = torch.arange(utils.M).unsqueeze(0) < cum_sw[1:].unsqueeze(-1)
+        # big_mask = torch.arange(utils.M).unsqueeze(0) >= cum_sw[:-1].unsqueeze(-1)
+        # mask = small_mask * big_mask
+
+        mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
+
         """
         # decode
         bsi = (
@@ -201,8 +209,6 @@ class GatedSwitchGNN(nn.Module):
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
         """
 
-        S = data.S
-
         switches_nodes = torch.nonzero(data.S.triu())
         n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
 
@@ -223,23 +229,23 @@ class GatedSwitchGNN(nn.Module):
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
         p_switch = self.switch_activation(SMLP_out[:, 0])
+        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
+        graph_topo[mask] = p_switch
 
         if warm_start:
-            topology = self.PhyR(p_switch.flatten(), n_switches)
-        else:
-            topology = p_switch.flatten()
+            graph_topo = self.PhyR(graph_topo, n_switches)
 
         # graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
         # graph_topo[data.switch_mask] = topology.float()
 
-        graph_topo = torch.hstack((torch.zeros((200, utils.M - utils.numSwitches)), topology.view((x.shape[0], -1))))
+        # graph_topo = torch.hstack((torch.zeros((200, utils.M - utils.numSwitches)), topology.view((x.shape[0], -1))))
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1))
+        ps_flow[mask] = SMLP_out[:, 1]
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((x.shape[0], -1))
+        vs_parent[mask] = SMLP_out[:, 2]
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((x.shape[0], -1))
+        vs_child[mask] = SMLP_out[:, 3]
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -253,11 +259,11 @@ class GatedSwitchGNN(nn.Module):
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((x.shape[0], -1))
+        pc_flow[~mask] = CMLP_out[:, 0]
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((x.shape[0], -1))
+        vc_parent[~mask] = CMLP_out[:, 1]
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((x.shape[0], -1))
+        vc_child[~mask] = CMLP_out[:, 2]
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent

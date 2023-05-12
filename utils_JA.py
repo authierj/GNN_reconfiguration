@@ -117,7 +117,7 @@ class Utils:
         # prob_push = torch.sum(topology * (topology -1), dim=1)
         return fncval
 
-    def PhyR(self, s, n_switches):
+    def PhyR(self, graph_topo):
         """
         args:
             s: Input switch  probabilities prediction of the NN in a flattened vector
@@ -125,20 +125,17 @@ class Utils:
         return:
             The topology of the graph
         """
-        n_switches = n_switches[0]
-        L = (self.N - 1) - (self.M - n_switches).int()
-        p_switch = s.view(200, -1)
 
         # Find the L-th largest values along each row
-        _, indices = torch.topk(p_switch, L, dim=1, largest=True, sorted=True)
+        _, indices = torch.topk(graph_topo, self.N - 1, dim=1, largest=True, sorted=True)
 
         # Create a mask of the same shape as p_switch
-        mask = torch.zeros_like(p_switch, requires_grad=True, device=self.device)
+        mask = torch.zeros_like(graph_topo, requires_grad=True, device=self.device)
 
         # Set the L largest values in each row to one
         topology = torch.scatter(mask, 1, indices, 1)
 
-        return topology.flatten()
+        return topology
 
     def back_PhyR(self, s, n_switches):
         """
@@ -148,12 +145,11 @@ class Utils:
         return:
             The topology of the graph
         """
-        n_switches = n_switches[0]
-        L = (self.N - 1) - (self.M - n_switches).int()
+        n_switches
         p_switch = s.view(200, -1)
 
         # Find the L-th largest values along each row
-        _, indices = torch.topk(p_switch, L, dim=1, largest=True, sorted=True)
+        _, indices = torch.topk(p_switch, self.N - 1, dim=1, largest=True, sorted=True)
 
         # Create a mask of the same shape as p_switch
         mask = torch.zeros_like(p, requires_grad=True, device=self.device)
@@ -378,8 +374,7 @@ class Utils:
         """
 
         opt_pij, opt_v, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
-        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : ])
-
+        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim :])
 
         _, _, topology = self.decompose_vars_z_JA(z)
 

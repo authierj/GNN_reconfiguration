@@ -6,6 +6,8 @@ import argparse
 from torch_geometric.loader import DataLoader, DenseDataLoader
 import time
 import os
+import torch.autograd.profiler as profiler
+
 
 # Local
 from utils_JA import Utils
@@ -44,9 +46,23 @@ def main(args):
     graph_dataset.data.to(device)
 
     # TODO change to arguments so that we can use different networks directly
-    train_graphs = graph_dataset[0:3200]
-    valid_graphs = graph_dataset[3200:3600]
-    test_graphs = graph_dataset[3600:4000]
+    num_graph_per_dataset = 8760
+    train_idx = torch.hstack(
+        (
+            torch.arange(0, 3200),
+            torch.arange(num_graph_per_dataset, num_graph_per_dataset + 3200),
+        )
+    )
+    valid_idx = torch.hstack(
+        (
+            torch.arange(3200, 3600),
+            torch.arange(num_graph_per_dataset + 3200, num_graph_per_dataset + 3600),
+        )
+    )
+    test_idx = valid_idx + 400
+    train_graphs = graph_dataset[train_idx]
+    valid_graphs = graph_dataset[valid_idx]
+    test_graphs = graph_dataset[test_idx]
 
     batch_size = args["batchSize"]
     train_loader = DenseDataLoader(train_graphs, batch_size=batch_size, shuffle=True)
@@ -106,8 +122,8 @@ def main(args):
     warm_start = False
     # train and test
     for i in range(num_epochs):
-        if i == 250 and args["warmStart"]:
-            warm_start = True
+        # if i == 250 and args["warmStart"]:
+        #     warm_start = True
         start_train = time.time()
         train_epoch_stats = train(
             model, optimizer, cost_fnc, train_loader, args, utils, warm_start
@@ -193,7 +209,14 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     total_time = 0
     opt_time = 0
     for data in loader:
-        z_hat, zc_hat = model(data, utils, warm_start)
+        z_hat, zc_hat = model(data, utils)
+
+        with profiler.profile(with_stack=True, profile_memory=True) as prof:
+            z_hat, zc_hat = model(data, utils)
+        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
+
+        exit()
+        # z_hat, zc_hat = model(data, utils, warm_start)
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,

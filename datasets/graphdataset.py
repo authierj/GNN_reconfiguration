@@ -25,11 +25,11 @@ class GraphDataSet(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return "casedata_33_uniform_extrasw4"
+        return ["casedata_33_uniform_extrasw4"]
 
     @property
     def processed_file_names(self):
-        return "new_graph.pt"
+        return "graph_alt.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -67,45 +67,47 @@ class GraphDataSet(InMemoryDataset):
 
     def process(self):
         # Read data into huge `Data` list.
-        path = os.path.join(self.raw_dir, self.raw_file_names)
-        data = spio.loadmat(path)
-
-        cases = data["case_data_all"][0][0]
-        pl = cases["PL"].T
-        ql = cases["QL"].T
-        x = torch.dstack((from_np(pl), from_np(ql))).float()
-
-        network = data["network_data"][0, 0]
-        n = np.squeeze(network[5]).item(0)
-        m = np.squeeze(network[6]).item(0)
-
-        sw_idx = np.squeeze(network[8]) - 1
-        interim = list(set(np.arange(0, m)) ^ set(sw_idx))
-        numSwitches = np.squeeze(network[9]).item(0)
-
-        begin_edges = network[10].indices
-        end_edges = network[11].indices
-        edges = np.vstack((begin_edges, end_edges))
-        edges = np.hstack((edges[:, interim], edges[:, sw_idx]))
-        reversed_edges = np.flip(edges, axis=0)
-        bi_edges = from_np(np.hstack((edges, reversed_edges))).long()
-
-        solutions = data["res_data_all"][0][0]
-        z = solutions[0]
-        zc = solutions[1]
-
-        z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
-
-        y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
-
         data_list = []
 
-        for i in range(y.shape[0]):
-            # features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
-            graph = MyGraph(
-                x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :]
-            )
-            data_list.append(graph)
+        for raw_file_name in self.raw_file_names:
+            path = os.path.join(self.raw_dir, raw_file_name)
+            data = spio.loadmat(path)
+
+            cases = data["case_data_all"][0][0]
+            pl = cases["PL"].T
+            ql = cases["QL"].T
+            x = torch.dstack((from_np(pl), from_np(ql))).float()
+
+            network = data["network_data"][0, 0]
+            n = np.squeeze(network[5]).item(0)
+            m = np.squeeze(network[6]).item(0)
+
+            sw_idx = np.squeeze(network[8]) - 1
+            interim = list(set(np.arange(0, m)) ^ set(sw_idx))
+            numSwitches = np.squeeze(network[9]).item(0)
+
+            begin_edges = network[10].indices
+            end_edges = network[11].indices
+            edges = np.vstack((begin_edges, end_edges))
+            edges = np.hstack((edges[:, interim], edges[:, sw_idx]))
+            reversed_edges = np.flip(edges, axis=0)
+            bi_edges = from_np(np.hstack((edges, reversed_edges))).long()
+
+            solutions = data["res_data_all"][0][0]
+            z = solutions[0]
+            zc = solutions[1]
+
+            z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
+
+            y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
+
+
+            for i in range(y.shape[0]):
+                # features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
+                graph = MyGraph(
+                    x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :], numSwitches=numSwitches
+                )
+                data_list.append(graph)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
@@ -118,12 +120,12 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return "casedata_33_uniform_extrasw4"
+        return ["casedata_33_uniform_extrasw4", "casedata_33_uniform_extrasw4_6"]
         # return "casedata_33_uniform_extrasw"
 
     @property
     def processed_file_names(self):
-        return "new_graph_switches.pt"
+        return "graph_switches_4_and_6.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -161,61 +163,64 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     def process(self):
         # Read data into huge `Data` list.
-        path = os.path.join(self.raw_dir, self.raw_file_names)
-        data = spio.loadmat(path)
-
-        cases = data["case_data_all"][0][0]
-        network = data["network_data"][0, 0]
-        solutions = data["res_data_all"][0][0]
-
-        pl = cases["PL"].T
-        ql = cases["QL"].T
-        x = torch.dstack((from_np(pl), from_np(ql))).float()
-
-        n = np.squeeze(network[5]).item(0)
-        m = np.squeeze(network[6]).item(0)
-
-        sw_idx = np.squeeze(network[8]) - 1
-        interim = list(set(np.arange(0, m)) ^ set(sw_idx))
-        numSwitches = np.squeeze(network[9]).item(0)
-
-        begin_edges = network[10].indices
-        end_edges = network[11].indices
-        edges = np.vstack((begin_edges, end_edges))
-
-        edges_no_sw = edges[:, interim]
-        reversed_edges_no_sw = np.flip(edges_no_sw, axis=0)
-        bi_edges_no_sw = from_np(np.hstack((edges_no_sw, reversed_edges_no_sw))).long()
-
-        edges_sw = edges[:, sw_idx]
-        reversed_edges_sw = np.flip(edges_sw, axis=0)
-        bi_edges_sw = from_np(np.hstack((edges_sw, reversed_edges_sw))).long()
-
-        A = torch.sparse_coo_tensor(
-            bi_edges_no_sw, torch.ones(bi_edges_no_sw.shape[1]), (n, n)
-        )
-        S = torch.sparse_coo_tensor(
-            bi_edges_sw, torch.ones(bi_edges_sw.shape[1]), (n, n)
-        )
-
-        z = solutions[0]
-        zc = solutions[1]
-
-        z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
-
-        y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
-
         data_list = []
 
-        for i in range(y.shape[0]):
-            graph = MyGraph(
-                x=x[i, :, :],
-                A=A.to_dense().bool(),
-                S=S.to_dense().bool(),
-                idx=i,
-                y=y[i, :],
+        for raw_file_name in self.raw_file_names:        
+            path = os.path.join(self.raw_dir, raw_file_name)
+            data = spio.loadmat(path)
+
+            cases = data["case_data_all"][0][0]
+            network = data["network_data"][0, 0]
+            solutions = data["res_data_all"][0][0]
+
+            pl = cases["PL"].T
+            ql = cases["QL"].T
+            x = torch.dstack((from_np(pl), from_np(ql))).float()
+
+            n = np.squeeze(network[5]).item(0)
+            m = np.squeeze(network[6]).item(0)
+
+            sw_idx = np.squeeze(network[8]) - 1
+            interim = list(set(np.arange(0, m)) ^ set(sw_idx))
+            numSwitches = np.squeeze(network[9]).item(0)
+
+            begin_edges = network[10].indices
+            end_edges = network[11].indices
+            edges = np.vstack((begin_edges, end_edges))
+
+            edges_no_sw = edges[:, interim]
+            reversed_edges_no_sw = np.flip(edges_no_sw, axis=0)
+            bi_edges_no_sw = from_np(np.hstack((edges_no_sw, reversed_edges_no_sw))).long()
+
+            edges_sw = edges[:, sw_idx]
+            reversed_edges_sw = np.flip(edges_sw, axis=0)
+            bi_edges_sw = from_np(np.hstack((edges_sw, reversed_edges_sw))).long()
+
+            A = torch.sparse_coo_tensor(
+                bi_edges_no_sw, torch.ones(bi_edges_no_sw.shape[1]), (n, n)
             )
-            data_list.append(graph)
+            S = torch.sparse_coo_tensor(
+                bi_edges_sw, torch.ones(bi_edges_sw.shape[1]), (n, n)
+            )
+
+            z = solutions[0]
+            zc = solutions[1]
+
+            z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
+
+            y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
+
+
+            for i in range(y.shape[0]):
+                graph = MyGraph(
+                    x=x[i, :, :],
+                    A=A.to_dense().bool(),
+                    S=S.to_dense().bool(),
+                    idx=i,
+                    y=y[i, :],
+                    numSwitches=numSwitches,
+                )
+                data_list.append(graph)
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
 
