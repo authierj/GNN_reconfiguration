@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        default="GatedSwitchGNN",
+        default="GatedSwitchGNN_globalMLP",
         choices=[
             "GatedSwitchGNN",
             "GatedSwitchGNN_globalMLP",

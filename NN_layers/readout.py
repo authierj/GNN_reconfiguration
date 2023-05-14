@@ -38,11 +38,12 @@ class GlobalMLP_reduced(torch.nn.Module):
         x = self.lin_output(x)
         return x
 
+
 class GlobalMLP_reduced_switch(torch.nn.Module):
-    def __init__(self, args, n_nodes, output_dim):
+    def __init__(self, args, input_dim, output_dim):
         super(GlobalMLP_reduced_switch, self).__init__()
         # torch.manual_seed(12)
-        input_features = args["hiddenFeatures"] * (n_nodes+7)
+        input_features = args["hiddenFeatures"] * input_dim
         hidden_features = input_features
         self.lin_input = Linear(input_features, hidden_features)
         self.lin_output = Linear(hidden_features, output_dim)
@@ -55,10 +56,9 @@ class GlobalMLP_reduced_switch(torch.nn.Module):
         x = self.lin_output(x)
         return x
 
+
 class SMLP(torch.nn.Module):
-    def __init__(
-        self, input_features, hidden_features, dropout
-    ):
+    def __init__(self, input_features, hidden_features, dropout):
         super(SMLP, self).__init__()
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
@@ -75,9 +75,7 @@ class SMLP(torch.nn.Module):
 
 
 class CMLP(torch.nn.Module):
-    def __init__(
-        self, input_features, hidden_features, dropout
-    ):
+    def __init__(self, input_features, hidden_features, dropout):
         super(CMLP, self).__init__()
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)

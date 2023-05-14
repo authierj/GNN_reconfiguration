@@ -213,6 +213,8 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
 
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
+        batch = data.batch
+        ptr = data.ptr
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,
@@ -342,7 +344,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        default="GCN_local_MLP",
+        default="GCN_Global_MLP_reduced_model",
         choices=[
             "GCN_Global_MLP_reduced_model",
             "GCN_local_MLP",

@@ -26,15 +26,13 @@ class GCN_Global_MLP_reduced_model(nn.Module):
             self.switch_activation = nn.Identity()
 
     def forward(self, data, utils, warm_start=False):
-        # input of Rabab's NN
-        # x_input = xgraph_xflatten(x, 200, first_node=True)
-
+    
         x_input = data.x.view(200, -1, 2)
 
         xg = self.GNN(data.x, data.edge_index)
 
-        x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
-        # x_nn = xg.view(200, -1, xg.shape[1])
+        # x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
+        x_nn = xg.view(200, -1)
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
@@ -84,7 +82,6 @@ class GCN_local_MLP(nn.Module):
 
     def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
-        # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
 
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
@@ -184,15 +181,13 @@ class GNN_global_MLP(nn.Module):
             self.switch_activation = nn.Identity()
 
     def forward(self, data, utils, warm_start=False):
-        # input of Rabab's NN
-        # x_input = xgraph_xflatten(x, 200, first_node=True)
 
         x_input = data.x.view(200, -1, 2)
 
         xg = self.GNN(data.x, data.edge_index)
 
-        x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
-        # x_nn = xg.view(200, -1, xg.shape[1])
+        # x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
+        x_nn = xg.view(200, -1)
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
@@ -242,7 +237,6 @@ class GNN_local_MLP(nn.Module):
 
     def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
-        # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
 
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
