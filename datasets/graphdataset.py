@@ -93,25 +93,46 @@ class GraphDataSet(InMemoryDataset):
             reversed_edges = np.flip(edges, axis=0)
             bi_edges = from_np(np.hstack((edges, reversed_edges))).long()
 
+            inc_parents = torch.sparse_coo_tensor(
+                np.vstack((edges[0, :], torch.arange(edges.shape[1]))),
+                torch.ones(edges.shape[1]),
+                (n, edges.shape[1]),
+            )
+            inc_childs = torch.sparse_coo_tensor(
+                np.vstack((edges[1, :], torch.arange(edges.shape[1]))),
+                torch.ones(edges.shape[1]),
+                (n, edges.shape[1]),
+            )
+            incidence = inc_parents - inc_childs
+
             solutions = data["res_data_all"][0][0]
             z = solutions[0]
             zc = solutions[1]
 
-            z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
+            z_JA, zc_JA = self.extract_JA_sol(
+                z.T, zc.T, n, m, numSwitches, sw_idx, interim
+            )
 
             y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
-
 
             for i in range(y.shape[0]):
                 # features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
                 graph = MyGraph(
-                    x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :], numSwitches=numSwitches
+                    x=x[i, :, :],
+                    edge_index=bi_edges,
+                    idx=i,
+                    y=y[i, :],
+                    numSwitches=numSwitches,
+                    incidence=incidence.to_dense().int(),
+                    inc_parents=inc_parents.to_dense().bool(),
+                    inc_childs=inc_childs.to_dense().bool(),
                 )
                 data_list.append(graph)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
         # could also maybe save the slices sperately, could be useful for graphs of multiple sizes
+
 
 class GraphDataSetWithSwitches(InMemoryDataset):
     def __init__(self, root="datasets/node4"):
@@ -165,7 +186,7 @@ class GraphDataSetWithSwitches(InMemoryDataset):
         # Read data into huge `Data` list.
         data_list = []
 
-        for raw_file_name in self.raw_file_names:        
+        for raw_file_name in self.raw_file_names:
             path = os.path.join(self.raw_dir, raw_file_name)
             data = spio.loadmat(path)
 
@@ -190,7 +211,9 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
             edges_no_sw = edges[:, interim]
             reversed_edges_no_sw = np.flip(edges_no_sw, axis=0)
-            bi_edges_no_sw = from_np(np.hstack((edges_no_sw, reversed_edges_no_sw))).long()
+            bi_edges_no_sw = from_np(
+                np.hstack((edges_no_sw, reversed_edges_no_sw))
+            ).long()
 
             edges_sw = edges[:, sw_idx]
             reversed_edges_sw = np.flip(edges_sw, axis=0)
@@ -202,14 +225,26 @@ class GraphDataSetWithSwitches(InMemoryDataset):
             S = torch.sparse_coo_tensor(
                 bi_edges_sw, torch.ones(bi_edges_sw.shape[1]), (n, n)
             )
+            inc_parents = torch.sparse_coo_tensor(
+                np.vstack((edges[0, :], torch.arange(edges.shape[1]))),
+                torch.ones(edges.shape[1]),
+                (n, edges.shape[1]),
+            )
+            inc_childs = torch.sparse_coo_tensor(
+                np.vstack((edges[1, :], torch.arange(edges.shape[1]))),
+                torch.ones(edges.shape[1]),
+                (n, edges.shape[1]),
+            )
+            incidence = inc_parents - inc_childs
 
             z = solutions[0]
             zc = solutions[1]
 
-            z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
+            z_JA, zc_JA = self.extract_JA_sol(
+                z.T, zc.T, n, m, numSwitches, sw_idx, interim
+            )
 
             y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
-
 
             for i in range(y.shape[0]):
                 graph = MyGraph(
@@ -219,123 +254,10 @@ class GraphDataSetWithSwitches(InMemoryDataset):
                     idx=i,
                     y=y[i, :],
                     numSwitches=numSwitches,
+                    incidence=incidence.to_dense().int(),
+                    inc_parents=inc_parents.to_dense().bool(),
+                    inc_childs=inc_childs.to_dense().bool(),
                 )
                 data_list.append(graph)
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
-
-        # data, slices = self.collate(data_list)
-        # torch.save((data, slices), self.processed_paths[0])
-
-        # mStart = network[9]
-        # mEnd = network[10]
-
-        # mStart_reshaped = sp.hstack((mStart[:, interim], mStart[:, switch_indexes]))
-        # mEnd_reshaped = sp.hstack((mEnd[:, interim], mEnd[:, switch_indexes]))
-
-        # mStart_tensor = (
-        #     torch.sparse_coo_tensor(
-        #         torch.vstack(
-        #             (
-        #                 torch.from_numpy(mStart_reshaped.tocoo().row),
-        #                 torch.from_numpy(mStart_reshaped.tocoo().col),
-        #             )
-        #         ),
-        #         mStart_reshaped.data,
-        #         torch.Size(mStart_reshaped.shape),
-        #     )
-        #     .to_dense()
-        #     .bool()
-        # )  # indices, values, size
-        # mEnd_tensor = (
-        #     torch.sparse_coo_tensor(
-        #         torch.vstack(
-        #             (
-        #                 torch.from_numpy(mEnd_reshaped.tocoo().row),
-        #                 torch.from_numpy(mEnd_reshaped.tocoo().col),
-        #             )
-        #         ),
-        #         mEnd_reshaped.data,
-        #         torch.Size(mEnd_reshaped.shape),
-        #     )
-        #     .to_dense()
-        #     .bool()
-        # )  # indices, values, size
-
-        # incidence = mStart_tensor.int() - mEnd_tensor.int()
-        # D_inv = torch.diag(1 / torch.sum(torch.abs(incidence), 1))
-
-        # switch_mask = np.zeros(M)
-        # switch_mask[-numSwitches::] = 1
-        # switch_indexes_bi = np.concatenate((switch_indexes, switch_indexes + M))
-        # switches = edges[:, switch_indexes_bi]
-        # edges_without_switches = np.delete(edges, switch_indexes_bi, axis=1)
-
-        # # Adjacency and Switch-Adjacency matrices
-        # N = np.squeeze(network["N"])
-        # A = np.zeros((N, N))
-        # S = np.zeros((N, N))
-
-        # A[edges_without_switches[0, :], edges_without_switches[1, :]] = 1
-        # S[switches[0, :], switches[1, :]] = 1
-
-        # # Convert to torch
-        # switches = from_np(switches).long()
-        # edges_without_switches = from_np(edges_without_switches).long()
-        # A = from_np(A).bool()
-        # A.to_sparse()
-        # S = from_np(S).bool()
-        # S.to_sparse()
-        # switch_mask = from_np(switch_mask).bool()
-
-        # pl = cases["PL"]
-        # ql = cases["QL"]
-        # z = solutions["z"]
-        # zc = solutions["zc"]
-
-        # # I think this is useless
-        # perm = np.arange(pl.shape[1])
-        # rng = np.random.default_rng(1)
-        # rng.shuffle(perm)
-
-        # pl = pl[:, perm].T
-        # ql = ql[:, perm].T
-        # z = z[:, perm].T
-        # zc = zc[:, perm].T
-
-        # x = torch.dstack((from_np(pl), from_np(ql))).float()
-        # y = torch.hstack((from_np(z), from_np(zc))).float()
-
-        # data_list = []
-
-        # for i in range(y.shape[0]):
-        #     features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
-        #     # graph = MyGraph(
-        #     #     x=features,
-        #     #     edge_index=edges_without_switches,
-        #     #     switch_index=switches,
-        #     #     A=A,
-        #     #     S=S,
-        #     #     idx=i,
-        #     #     y=y[i, :],
-        #     # )
-        #     graph = SwitchGraph(
-        #         x_mod=features,
-        #         A=A,
-        #         S=S,
-        #         switch_mask=switch_mask,
-        #         Incidence=incidence,
-        #         Incidence_parent=mStart_tensor,
-        #         Incidence_child=mEnd_tensor,
-        #         D_inv=D_inv,
-        #         idx=i,
-        #         y=y[i, :],
-        #     )
-        #     data_list.append(graph)
-
-
-#         data, slices = self.collate(data_list)
-#         torch.save((data, slices), self.processed_paths[0])
-
-
-# dataset = GraphDataSet(root="datasets/baranwu33")

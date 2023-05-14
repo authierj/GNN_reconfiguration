@@ -211,12 +211,10 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     for data in loader:
         z_hat, zc_hat = model(data, utils)
 
-        with profiler.profile(with_stack=True, profile_memory=True) as prof:
-            z_hat, zc_hat = model(data, utils)
-        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
+        # with profiler.profile(with_stack=True, profile_memory=True) as prof:
+        #     z_hat, zc_hat = model(data, utils)
+        # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
 
-        exit()
-        # z_hat, zc_hat = model(data, utils, warm_start)
         train_loss, soft_weight = total_loss(
             z_hat,
             zc_hat,

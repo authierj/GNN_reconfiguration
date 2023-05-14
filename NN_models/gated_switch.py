@@ -77,38 +77,7 @@ class GatedSwitchGNN(nn.Module):
 
     def forward(self, data, utils, warm_start=False):
         # encode
-        # bsi = (
-        #     torch.arange(data.switch_index.shape[0])
-        #     .unsqueeze(1)
-        #     .repeat(1, 2 * data.num_sw[0])
-        #     .unsqueeze(1)
-        # )
-        # bei = (
-        #     torch.arange(data.edge_index.shape[0])
-        #     .unsqueeze(1)
-        #     .repeat(1, int(data.edge_index.shape[2]))
-        #     .unsqueeze(1)
-        # )
-        # switch_index_batch = torch.cat((bsi.transpose(0,1), data.switch_index.transpose(0,1)), dim=0)
-        # edge_index_batch = torch.cat((bei.transpose(0,1), data.edge_index.transpose(0,1)), dim=0)
-        # n = data.x.shape[1]
-        # b = data.x.shape[0]
-
-        # S = torch.sparse_coo_tensor(
-        #     switch_index_batch.view(3,-1), torch.ones((b * switch_index_batch.shape[2])), (b, n, n)
-        # )
-
-        # A = torch.sparse_coo_tensor(
-        #     edge_index_batch.view(3,-1), torch.ones((b * edge_index_batch.shape[2])), (b, n, n)
-        # )
         x, s = self.Encoder(data.x, data.A, data.S)  # B x N x F, B x N x N x F
-
-        # cum_sw = torch.hstack((torch.zeros((1)), torch.cumsum(data.numSwitches, dim=0).squeeze()))
-
-        # small_mask = torch.arange(utils.M).unsqueeze(0) < cum_sw[1:].unsqueeze(-1)
-        # big_mask = torch.arange(utils.M).unsqueeze(0) >= cum_sw[:-1].unsqueeze(-1)
-        # mask = small_mask * big_mask
-
         mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
 
         """
@@ -210,7 +179,6 @@ class GatedSwitchGNN(nn.Module):
         """
 
         switches_nodes = torch.nonzero(data.S.triu())
-        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
 
         switches = s[
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
@@ -233,12 +201,7 @@ class GatedSwitchGNN(nn.Module):
         graph_topo[mask] = p_switch
 
         if warm_start:
-            graph_topo = self.PhyR(graph_topo, n_switches)
-
-        # graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
-        # graph_topo[data.switch_mask] = topology.float()
-
-        # graph_topo = torch.hstack((torch.zeros((200, utils.M - utils.numSwitches)), topology.view((x.shape[0], -1))))
+            graph_topo = self.PhyR(graph_topo, data.numSwitches)
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[mask] = SMLP_out[:, 1]
@@ -306,10 +269,10 @@ class GatedSwitchGNN_globalMLP(nn.Module):
     def forward(self, data, utils, warm_start=False):
         # encode
         x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
+        mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
 
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
-        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
 
         switches = s[
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
@@ -322,15 +285,11 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         SMLP_out = self.MLP(SMLP_input)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(SMLP_out[:, -utils.numSwitches : :])
-        n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
+        graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
+        graph_topo[mask] = p_switch
 
         if warm_start:
-            topology = self.PhyR(p_switch.flatten(), n_switch_per_batch)
-        else:
-            topology = p_switch.flatten()
-
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+            graph_topo = self.PhyR(graph_topo, data.numSwitches)
 
         v = SMLP_out[:, utils.M : utils.M + utils.N]
         v[:, 0] = 1
