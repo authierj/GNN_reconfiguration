@@ -30,23 +30,20 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         # x_input = xgraph_xflatten(x, 200, first_node=True)
 
         x_input = data.x.view(200, -1, 2)
+        mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
 
         xg = self.GNN(data.x, data.edge_index)
 
-        x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
-        # x_nn = xg.view(200, -1, xg.shape[1])
+        # x_nn = xgraph_xflatten(xg, 200, first_node=True).to(device=self.device)
+        x_nn = xg.view(200, -1)
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
-        n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
+        graph_topo = torch.ones((x_nn.shape[0], utils.M), device=self.device)
+        graph_topo[mask] = p_switch
 
         if warm_start:
-            topology = self.PhyR(p_switch.flatten(), n_switch_per_batch)
-        else:
-            topology = p_switch.flatten()
-
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+            graph_topo = self.PhyR(graph_topo, data.numSwitches)
 
         v = out[:, utils.M : utils.M + utils.N]
         v[:, 0] = 1
@@ -57,7 +54,6 @@ class GCN_Global_MLP_reduced_model(nn.Module):
             graph_topo,
             utils.A,
         )
-
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
         return z, zc
@@ -86,74 +82,77 @@ class GCN_local_MLP(nn.Module):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
+        mask = torch.arange(utils.M).unsqueeze(
+            0
+        ) >= utils.M - data.numSwitches.unsqueeze(1)
 
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
         num_features = xg.shape[1]
 
         x_nn = xg.view(200, -1, num_features)  # B x N x F
 
-        switches_nodes = torch.nonzero(utils.S.triu())
-        n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
+        edges = data.edge_index[0, :].view(200, -1)
+        parent_edges = edges[:, : edges.shape[1] // 2]
+        child_edges = edges[:, edges.shape[1] // 2 :]
 
-        x_1 = x_nn[:, switches_nodes[:, 0], :].view(-1, num_features)
-        x_2 = x_nn[:, switches_nodes[:, 1], :].view(-1, num_features)
+        parent_nodes = parent_edges[~mask]
+        parent_switches = parent_edges[mask]
+        child_nodes = child_edges[~mask]
+        child_switches = child_edges[mask]
 
+        x1 = xg[parent_switches, :]
+        x2 = xg[child_switches, :]
         x_g = torch.sum(x_nn, dim=1)  # B x F
-        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
-            -1, num_features
-        )  # dim = num_switches*B x F
-        
-        SMLP_input = torch.cat((x_1, x_2, x_g_extended), dim=1)  # num_switches*B x 3F
+        x_g_extended = x_g.repeat_interleave(data.numSwitches, dim=0)
+
+        SMLP_input = torch.cat((x1, x2, x_g_extended), dim=1)  # num_switches*B x 3F
         SMLP_out = self.SMLP(
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
         p_switch = self.switch_activation(SMLP_out[:, 0])
+        graph_topo = torch.ones((x_input.shape[0], utils.M), device=self.device)
+        graph_topo[mask] = p_switch
 
         if warm_start:
-            topology = self.PhyR(p_switch, n_switch_per_batch)
-            # topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
-        else:
-            topology = p_switch.flatten()
+            graph_topo = self.PhyR(graph_topo, data.numSwitches)
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+        ps_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
+        ps_flow[mask] = SMLP_out[:, 1]
+        vs_parent = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
+        vs_parent[mask] = SMLP_out[:, 2]
+        vs_child = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
+        vs_child[mask] = SMLP_out[:, 3]
 
-        ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        ps_flow[:, -utils.numSwitches : :] = SMLP_out[:, 1].view((200, -1))
-        vs_parent = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_parent[:, -utils.numSwitches : :] = SMLP_out[:, 2].view((200, -1))
-        vs_child = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_child[:, -utils.numSwitches : :] = SMLP_out[:, 3].view((200, -1))
+        xbegin = xg[parent_nodes, :]
+        xend = xg[child_nodes, :]
+        x_g_extended = x_g.repeat_interleave(utils.M - data.numSwitches, dim=0)
 
-        nodes = torch.nonzero(utils.Adj.triu())  # dim = (M-num_switch)*B x 3
-
-        x_begin = x_nn[:, nodes[:, 0], :].view(-1, num_features)
-        x_end = x_nn[:, nodes[:, 1], :].view(-1, num_features)
-        # x_g_extended = x_g[nodes[:, 0], :]
-        x_g_extended = x_g.repeat(1, utils.M - utils.numSwitches).view(-1, num_features)
-
-        CMLP_input = torch.cat((x_begin, x_end, x_g_extended), dim=1)
+        CMLP_input = torch.cat((xbegin, xend, x_g_extended), dim=1)
         CMLP_out = self.CMLP(
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
-        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((200, -1))
+        pc_flow[~mask] = CMLP_out[:, 0]
         vc_parent = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
-        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((200, -1))
+        vc_parent[~mask] = CMLP_out[:, 1]
         vc_child = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
-        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((200, -1))
+        vc_child[~mask] = CMLP_out[:, 2]
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
+        B, N = data.inv_degree.shape
+        D_inv = torch.zeros((B, N, N))
+        D_inv[:, torch.arange(N), torch.arange(N)] = data.inv_degree
+
         v = (
-            utils.D_inv.float()
-            @ utils.Incidence_parent.float()
+            D_inv
+            @ data.inc_parents.float()
             @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + utils.D_inv.float()
-            @ utils.Incidence_child.float()
+            + D_inv
+            @ data.inc_childs.float()
             @ (vc_child + vs_child).unsqueeze(2).float()
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
@@ -188,6 +187,7 @@ class GNN_global_MLP(nn.Module):
         # x_input = xgraph_xflatten(x, 200, first_node=True)
 
         x_input = data.x.view(200, -1, 2)
+        mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
 
         xg = self.GNN(data.x, data.edge_index)
 
@@ -196,15 +196,11 @@ class GNN_global_MLP(nn.Module):
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
         p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
-        n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
+        graph_topo = torch.ones((x_nn.shape[0], utils.M), device=self.device)
+        graph_topo[mask] = p_switch
 
         if warm_start:
-            topology = self.PhyR(p_switch.flatten(), n_switch_per_batch)
-        else:
-            topology = p_switch.flatten()
-
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+            graph_topo = self.PhyR(graph_topo, data.numSwitches)
 
         v = out[:, utils.M : utils.M + utils.N]
         v[:, 0] = 1
@@ -244,74 +240,74 @@ class GNN_local_MLP(nn.Module):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
+        mask = torch.arange(utils.M).unsqueeze(
+            0
+        ) >= utils.M - data.numSwitches.unsqueeze(1)
 
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
         num_features = xg.shape[1]
 
         x_nn = xg.view(200, -1, num_features)  # B x N x F
 
-        switches_nodes = torch.nonzero(utils.S.triu())
-        n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
+        edges = data.edge_index[0, :].view(200, -1)
+        parent_edges = edges[:, : edges.shape[1] // 2]
+        child_edges = edges[:, edges.shape[1] // 2 :]
 
-        x_1 = x_nn[:, switches_nodes[:, 0], :].view(-1, num_features)
-        x_2 = x_nn[:, switches_nodes[:, 1], :].view(-1, num_features)
+        parent_nodes = parent_edges[~mask]
+        parent_switches = parent_edges[mask]
+        child_nodes = child_edges[~mask]
+        child_switches = child_edges[mask]
 
+        x1 = xg[parent_switches, :]
+        x2 = xg[child_switches, :]
         x_g = torch.sum(x_nn, dim=1)  # B x F
-        x_g_extended = x_g.repeat(1, utils.numSwitches).view(
-            -1, num_features
-        )  # dim = num_switches*B x F
-        
-        SMLP_input = torch.cat((x_1, x_2, x_g_extended), dim=1)  # num_switches*B x 3F
+        x_g_extended = x_g.repeat_interleave(data.numSwitches, dim=0)
+
+        SMLP_input = torch.cat((x1, x2, x_g_extended), dim=1)  # num_switches*B x 3F
         SMLP_out = self.SMLP(
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
         p_switch = self.switch_activation(SMLP_out[:, 0])
+        graph_topo = torch.ones((x_input.shape[0], utils.M), device=self.device)
+        graph_topo[mask] = p_switch
 
         if warm_start:
-            topology = self.PhyR(p_switch, n_switch_per_batch)
-            # topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
-        else:
-            topology = p_switch.flatten()
+            graph_topo = self.PhyR(graph_topo, data.numSwitches)
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+        ps_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
+        ps_flow[mask] = SMLP_out[:, 1]
+        vs_parent = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
+        vs_parent[mask] = SMLP_out[:, 2]
+        vs_child = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
+        vs_child[mask] = SMLP_out[:, 3]
 
-        ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        ps_flow[:, -utils.numSwitches : :] = SMLP_out[:, 1].view((200, -1))
-        vs_parent = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_parent[:, -utils.numSwitches : :] = SMLP_out[:, 2].view((200, -1))
-        vs_child = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_child[:, -utils.numSwitches : :] = SMLP_out[:, 3].view((200, -1))
+        xbegin = xg[parent_nodes, :]
+        xend = xg[child_nodes, :]
+        x_g_extended = x_g.repeat_interleave(utils.M - data.numSwitches, dim=0)
 
-        nodes = torch.nonzero(utils.Adj.triu())  # dim = (M-num_switch)*B x 3
-
-        x_begin = x_nn[:, nodes[:, 0], :].view(-1, num_features)
-        x_end = x_nn[:, nodes[:, 1], :].view(-1, num_features)
-        # x_g_extended = x_g[nodes[:, 0], :]
-        x_g_extended = x_g.repeat(1, utils.M - utils.numSwitches).view(-1, num_features)
-
-        CMLP_input = torch.cat((x_begin, x_end, x_g_extended), dim=1)
+        CMLP_input = torch.cat((xbegin, xend, x_g_extended), dim=1)
         CMLP_out = self.CMLP(
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
-        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((200, -1))
+        pc_flow[~mask] = CMLP_out[:, 0]
         vc_parent = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
-        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((200, -1))
+        vc_parent[~mask] = CMLP_out[:, 1]
         vc_child = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
-        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((200, -1))
+        vc_child[~mask] = CMLP_out[:, 2]
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
+        # TODO put D_inv in the data object
         v = (
             utils.D_inv.float()
-            @ utils.Incidence_parent.float()
+            @ data.inc_parents.float()
             @ (vc_parent + vs_parent).unsqueeze(2).float()
             + utils.D_inv.float()
-            @ utils.Incidence_child.float()
+            @ data.inc_childs.float()
             @ (vc_child + vs_child).unsqueeze(2).float()
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1

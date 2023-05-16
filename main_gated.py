@@ -282,7 +282,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         epoch_stats: dictionary of statistics for the epoch
     """
 
-    model.eval()
+    model.eval() 
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
 

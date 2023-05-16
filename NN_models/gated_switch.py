@@ -131,7 +131,7 @@ class GatedSwitchGNN(nn.Module):
         bei = (
             torch.arange(data.edge_index.shape[0])
             .unsqueeze(1)
-            .repeat(1, int(data.edge_index.shape[2] / 2))
+            .repeat(1, data.edge_index.shape[2] // 2)
         )
 
         x_begin = x[bei, data.edge_index[:, 0, : utils.M - data.num_sw[0]], :]
@@ -231,12 +231,16 @@ class GatedSwitchGNN(nn.Module):
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
+        B, N = data.inv_degree.shape
+        D_inv = torch.zeros((B, N, N))
+        D_inv[:, torch.arange(N), torch.arange(N)] = data.inv_degree
+
         v = (
-            utils.D_inv.float()
-            @ utils.Incidence_parent.float()
+            D_inv
+            @ data.inc_parents.float()
             @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + utils.D_inv.float()
-            @ utils.Incidence_child.float()
+            + D_inv
+            @ data.inc_childs.float()
             @ (vc_child + vs_child).unsqueeze(2).float()
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1

@@ -373,15 +373,13 @@ class Utils:
             delta_topo: the squared distance between the topology chosen by the neural network and the reference topology
         """
 
-        opt_pij, opt_v, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
-        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim :])
-
+        _, _, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
         _, _, topology = self.decompose_vars_z_JA(z)
 
         delta_topo = torch.square(topology - opt_topo)
 
-        sum = torch.sum(delta_topo, dim=1)
-        max = torch.max(torch.sum(delta_topo, dim=1))
+        # sum = torch.sum(delta_topo, dim=1)
+        # max = torch.max(torch.sum(delta_topo, dim=1))
         # if torch.max(torch.sum(delta_topo, dim=1)) > 4:
         #     idx = torch.argmax(torch.sum(delta_topo, dim=1))
         #     print("problem")
@@ -412,14 +410,7 @@ class Utils:
         delta_v = torch.square(v[:, 1:] - opt_v[:, 1:]).pow(2)
         delta_pg = torch.square(pg - opt_pg)
         delta_qg = torch.square(qg - opt_qg)
-        # switch_decision = topology[switch_mask].reshape_as(y)
-        # delta_topo = torch.square(switch_decision - y) / (
-        #     2 * torch.sum(y, dim=1).view(-1, 1)
-        # )
-
-        # dist = torch.cat(
-        #     (delta_pij, delta_qij, delta_v, delta_pg, delta_qg, delta_topo), dim=1
-        # )
+       
         dist = torch.cat([delta_v, delta_pg, delta_qg], dim=1)
         return dist
 

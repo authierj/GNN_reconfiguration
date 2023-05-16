@@ -12,7 +12,7 @@ class MyGraph(Graph):
     "define Graphs with batches in a new dimension as in PyTorch"
 
     def __cat_dim__(self, key, value, *args, **kwargs):
-        if key == "y":
+        if key in ["y", "incidence", "inc_parents", "inc_childs", "inv_degree"]:
             return None
         else:
             return super().__cat_dim__(key, value, *args, **kwargs)
@@ -25,11 +25,11 @@ class GraphDataSet(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ["casedata_33_uniform_extrasw4"]
+        return ["casedata_33_uniform_extrasw4", "casedata_33_uniform_extrasw4_6"]
 
     @property
     def processed_file_names(self):
-        return "graph_alt.pt"
+        return "graph_4_and_6.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -104,6 +104,9 @@ class GraphDataSet(InMemoryDataset):
                 (n, edges.shape[1]),
             )
             incidence = inc_parents - inc_childs
+            inv_degree = (
+                1 / torch.sparse.sum(inc_parents + inc_childs, dim=1).to_dense()
+            )
 
             solutions = data["res_data_all"][0][0]
             z = solutions[0]
@@ -126,6 +129,7 @@ class GraphDataSet(InMemoryDataset):
                     incidence=incidence.to_dense().int(),
                     inc_parents=inc_parents.to_dense().bool(),
                     inc_childs=inc_childs.to_dense().bool(),
+                    inv_degree=inv_degree,
                 )
                 data_list.append(graph)
 
@@ -236,6 +240,7 @@ class GraphDataSetWithSwitches(InMemoryDataset):
                 (n, edges.shape[1]),
             )
             incidence = inc_parents - inc_childs
+            inv_degree = 1 / torch.sparse.sum(A + S, dim=1).to_dense()
 
             z = solutions[0]
             zc = solutions[1]
@@ -257,6 +262,7 @@ class GraphDataSetWithSwitches(InMemoryDataset):
                     incidence=incidence.to_dense().int(),
                     inc_parents=inc_parents.to_dense().bool(),
                     inc_childs=inc_childs.to_dense().bool(),
+                    inv_degree=inv_degree,
                 )
                 data_list.append(graph)
         data, slices = self.collate(data_list)
