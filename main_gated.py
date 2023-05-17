@@ -51,12 +51,14 @@ def main(args):
         (
             torch.arange(0, 3200),
             torch.arange(num_graph_per_dataset, num_graph_per_dataset + 3200),
+            torch.arange(2*num_graph_per_dataset, 2*num_graph_per_dataset + 3200),
         )
     )
     valid_idx = torch.hstack(
         (
             torch.arange(3200, 3600),
             torch.arange(num_graph_per_dataset + 3200, num_graph_per_dataset + 3600),
+            torch.arange(2*num_graph_per_dataset + 3200, 2*num_graph_per_dataset + 3600),
         )
     )
     test_idx = valid_idx + 400
