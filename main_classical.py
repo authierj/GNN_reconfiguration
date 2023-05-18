@@ -55,8 +55,6 @@ def main(args):
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
-    output_dim = utils.M + utils.N + utils.numSwitches
-
     model = getattr(classical_gnn, args["model"])(args, utils)
     model = model.to(device)
 
@@ -108,10 +106,6 @@ def main(args):
     warm_start = False
     # train and test
     for i in range(num_epochs):
-        # Update learning rate after 150 epochs
-        # if i == 150:
-        #     for param_group in optimizer.param_groups:
-        #         param_group["lr"] = args["lr"] / 10
         if i == 250 and args["warmStart"]:
             warm_start = True
 
@@ -161,7 +155,6 @@ def main(args):
         ):
             torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
             with open(file, "wb") as f:
-                # np.save(f, stats)
                 pickle.dump(stats, f)
 
     if args["saveModel"] or args["saveAllStats"]:

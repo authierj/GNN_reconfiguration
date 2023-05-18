@@ -7,7 +7,6 @@ import torch.autograd.profiler as profiler
 
 # local
 from utils_JA import xgraph_xflatten, Modified_Sigmoid
-import utils_JA
 
 
 class GCN_Global_MLP_reduced_model(nn.Module):
@@ -109,19 +108,18 @@ class GCN_local_MLP(nn.Module):
 
         if warm_start:
             topology = self.PhyR(p_switch, n_switch_per_batch)
-            # topology = getattr(utils, self.PhyR)(p_switch.flatten(), n_switch_per_batch)
         else:
             topology = p_switch.flatten()
 
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+        graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        ps_flow[:, -utils.numSwitches : :] = SMLP_out[:, 1].view((200, -1))
+        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((200, -1))
         vs_parent = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_parent[:, -utils.numSwitches : :] = SMLP_out[:, 2].view((200, -1))
+        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((200, -1))
         vs_child = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_child[:, -utils.numSwitches : :] = SMLP_out[:, 3].view((200, -1))
+        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((200, -1))
 
         nodes = torch.nonzero(utils.Adj.triu())  # dim = (M-num_switch)*B x 3
 
@@ -143,8 +141,7 @@ class GCN_local_MLP(nn.Module):
         vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((200, -1))
 
         p_flow = ps_flow + pc_flow
-        # first_mul = data.D_inv @ data.Incidence_parent
-        # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
+
         v = (
             utils.D_inv.float()
             @ utils.Incidence_parent.float()
@@ -199,7 +196,7 @@ class GNN_global_MLP(nn.Module):
             topology = p_switch.flatten()
 
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+        graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         v = out[:, utils.M : utils.M + utils.N]
         v[:, 0] = 1
