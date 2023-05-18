@@ -105,10 +105,6 @@ def main(args):
     warm_start = False
     # train and test
     for i in range(num_epochs):
-        # Update learning rate after 150 epochs
-        # if i == 150:
-        #     for param_group in optimizer.param_groups:
-        #         param_group["lr"] = args["lr"] / 10
         if i == 250 and args["warmStart"]:
             warm_start = True
 
