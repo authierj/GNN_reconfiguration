@@ -82,7 +82,7 @@ class GCN_local_MLP(nn.Module):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
-        mask = torch.arange(utils.M).unsqueeze(
+        mask = torch.arange(utils.M, device=utils.device).unsqueeze(
             0
         ) >= utils.M - data.numSwitches.unsqueeze(1)
 
@@ -144,8 +144,8 @@ class GCN_local_MLP(nn.Module):
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
         B, N = data.inv_degree.shape
-        D_inv = torch.zeros((B, N, N))
-        D_inv[:, torch.arange(N), torch.arange(N)] = data.inv_degree
+        D_inv = torch.zeros((B, N, N), device=self.device)
+        D_inv[:, torch.arange(N, device=self.device), torch.arange(N, device=self.device)] = data.inv_degree
 
         v = (
             D_inv

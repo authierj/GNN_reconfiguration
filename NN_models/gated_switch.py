@@ -78,7 +78,7 @@ class GatedSwitchGNN(nn.Module):
     def forward(self, data, utils, warm_start=False):
         # encode
         x, s = self.Encoder(data.x, data.A, data.S)  # B x N x F, B x N x N x F
-        mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
+        mask = torch.arange(utils.M, device=utils.device).unsqueeze(0) >= utils.M - data.numSwitches
 
         """
         # decode
@@ -232,8 +232,8 @@ class GatedSwitchGNN(nn.Module):
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
         B, N = data.inv_degree.shape
-        D_inv = torch.zeros((B, N, N))
-        D_inv[:, torch.arange(N), torch.arange(N)] = data.inv_degree
+        D_inv = torch.zeros((B, N, N), device=utils.device)
+        D_inv[:, torch.arange(N, device=utils.device), torch.arange(N, device=utils.device)] = data.inv_degree
 
         v = (
             D_inv
@@ -272,8 +272,8 @@ class GatedSwitchGNN_globalMLP(nn.Module):
 
     def forward(self, data, utils, warm_start=False):
         # encode
-        x, s = self.Encoder(data.x_mod, data.A, data.S)  # B x N x F, B x N x N x F
-        mask = torch.arange(utils.M).unsqueeze(0) >= utils.M - data.numSwitches
+        x, s = self.Encoder(data.x, data.A, data.S)  # B x N x F, B x N x N x F
+        mask = torch.arange(utils.M, device=utils.device).unsqueeze(0) >= utils.M - data.numSwitches
 
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
