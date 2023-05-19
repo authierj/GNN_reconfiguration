@@ -106,7 +106,7 @@ class GatedSwitchGNN(nn.Module):
 
         graph_topo = torch.hstack(
             (
-                torch.zeros((200, utils.M - utils.numSwitches)),
+                torch.zeros((200, utils.M - utils.numSwitches), device=utils.device),
                 topology.view((x.shape[0], -1)),
             )
         )

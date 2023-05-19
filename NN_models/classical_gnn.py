@@ -187,7 +187,7 @@ class GNN_global_MLP(nn.Module):
         x_nn = xg.view(200, -1)
         out = self.readout(x_nn)  # [pij, v, p_switch]
 
-        p_switch = self.switch_activation(out[:, -utils.numSwitches : :])
+        p_switch = self.switch_activation(out[:, -utils.numSwitches :])
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         if warm_start:
@@ -266,14 +266,14 @@ class GNN_local_MLP(nn.Module):
             topology = p_switch.flatten()
 
         graph_topo = torch.ones((200, utils.M), device=self.device).float()
-        graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
+        graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        ps_flow[:, -utils.numSwitches : :] = SMLP_out[:, 1].view((200, -1))
+        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((200, -1))
         vs_parent = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_parent[:, -utils.numSwitches : :] = SMLP_out[:, 2].view((200, -1))
+        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((200, -1))
         vs_child = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
-        vs_child[:, -utils.numSwitches : :] = SMLP_out[:, 3].view((200, -1))
+        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((200, -1))
 
         nodes = torch.nonzero(utils.Adj.triu())  # dim = (M-num_switch)*B x 3
 
