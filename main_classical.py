@@ -45,9 +45,25 @@ def main(args):
     graph_dataset.data.to(device)
 
     # TODO change to arguments so that we can use different networks directly
-    train_graphs = graph_dataset[0:3200]
-    valid_graphs = graph_dataset[3200:3600]
-    test_graphs = graph_dataset[3600:4000]
+    num_graph_per_dataset = 8760
+    train_idx = torch.hstack(
+        (
+            torch.arange(0, 3200),
+            torch.arange(num_graph_per_dataset, num_graph_per_dataset + 3200),
+            torch.arange(2*num_graph_per_dataset, 2*num_graph_per_dataset + 3200),
+        )
+    )
+    valid_idx = torch.hstack(
+        (
+            torch.arange(3200, 3600),
+            torch.arange(num_graph_per_dataset + 3200, num_graph_per_dataset + 3600),
+            torch.arange(2*num_graph_per_dataset + 3200, 2*num_graph_per_dataset + 3600),
+        )
+    )
+    test_idx = valid_idx + 400
+    train_graphs = graph_dataset[train_idx]
+    valid_graphs = graph_dataset[valid_idx]
+    test_graphs = graph_dataset[test_idx]
 
     batch_size = args["batchSize"]
     train_loader = DataLoader(train_graphs, batch_size=batch_size, shuffle=True)
