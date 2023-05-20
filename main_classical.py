@@ -220,10 +220,10 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         )
         if args["topoLoss"]:
             train_loss += args["topoWeight"] * utils.squared_error_topology(
-                z_hat, data.y, data.switch_mask
+                z_hat, data.y
             )
             # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
-            #     z_hat, data.y, data.switch_mask
+            #     z_hat, data.y
             # )
 
         train_loss.sum().backward()
