@@ -211,6 +211,9 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
             # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
             #     z_hat, data.y
             # )
+        if args["pushProb"]:
+            train_loss += args["pushWeight"] * utils.prob_push(z_hat)
+
 
         # time_start = time.time()
         train_loss.sum().backward()
@@ -412,6 +415,15 @@ if __name__ == "__main__":
         type=str,
         default="PhyR",
         choices=["PhyR", "back_PhyR", "mod_PhyR", "mod_back_PhyR"],
+    )
+    parser.add_argument(
+        "--pushProb", action="store_true", help="whether to use soft PhyR"
+    )
+    parser.add_argument(
+        "--pushWeight",
+        type=float,
+        default=100,
+        help="total weight given to soft PhyR",
     )
 
     args = parser.parse_args()

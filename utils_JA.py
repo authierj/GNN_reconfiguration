@@ -313,6 +313,23 @@ class Utils:
         # print(violated_resid[:,0])
 
         return violated_resid
+    
+    def prob_push(self, z):
+        """
+        prob_push returns a cost that pushes the switches towards zero or one probabilities and pushes the right number of switches to be closed the number of switches
+
+        args:
+            z: the output of the neural network
+        return:
+            push: the cost that pushes the switches towards zero or one probabilities and pushes the right number of switches to be closed the number of switches
+        """
+
+        _, _, topology = self.decompose_vars_z_JA(z)
+
+        push_speed = torch.sum(-topology  * (topology - 1) , dim=1)
+        physic_informed = (torch.sum(topology, dim=1) - (self.N - 1)) ** 2 
+        push = push_speed + physic_informed
+        return push
 
     def cross_entropy_loss_topology(self, z, y):
         """
