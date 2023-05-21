@@ -575,6 +575,8 @@ def default_args():
     defaults["switchActivation"] = "sig"
     defaults["warmStart"] = False
     defaults["PhyR"] = "mod_PhyR"
+    defaults["pushProb"] = False
+    defaults["pushWeight"] = 100
 
     return defaults
 
