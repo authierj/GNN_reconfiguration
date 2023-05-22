@@ -115,7 +115,7 @@ class GCN_local_MLP(nn.Module):
         graph_topo[mask] = p_switch
 
         if warm_start:
-            graph_topo = self.PhyR(graph_topo, data.numSwitches)
+            graph_topo = self.PhyR(graph_topo)
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         ps_flow[mask] = SMLP_out[:, 1]
@@ -240,7 +240,7 @@ class GNN_local_MLP(nn.Module):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
         x_input = data.x.view(200, -1, 2)
-        mask = torch.arange(utils.M).unsqueeze(
+        mask = torch.arange(utils.M, device=utils.device).unsqueeze(
             0
         ) >= utils.M - data.numSwitches.unsqueeze(1)
 

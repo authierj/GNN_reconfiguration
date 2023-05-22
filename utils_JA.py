@@ -127,7 +127,9 @@ class Utils:
         """
 
         # Find the L-th largest values along each row
-        _, indices = torch.topk(graph_topo, self.N - 1, dim=1, largest=True, sorted=True)
+        _, indices = torch.topk(
+            graph_topo, self.N - 1, dim=1, largest=True, sorted=True
+        )
 
         # Create a mask of the same shape as p_switch
         mask = torch.zeros_like(graph_topo, requires_grad=True, device=self.device)
@@ -160,7 +162,7 @@ class Utils:
 
         return result.flatten()
 
-    def mod_PhyR(self, s, n_switches):
+    def mod_PhyR(self, graph_topo):
         """
         args:
             s: Input switch  probabilities prediction of the NN in a flattened vector
@@ -168,27 +170,25 @@ class Utils:
         return:
             The topology of the graph
         """
-        n_switches = n_switches[0]
-        L = (self.N - 1) - (self.M - n_switches).int()
-        p_switch = s.view(200, -1)
-        p = p_switch[:, :-1]
+        graph = graph_topo[:, :-1]
 
-        # Find the L-th largest values along each row
-        _, indices = torch.topk(p, L + 1, dim=1, largest=True, sorted=True)
+        # Find the N-th largest values along each row
+        _, indices = torch.topk(graph, self.N, dim=1, largest=True, sorted=True)
 
         # Create a mask of the same shape as p_switch
-        mask = torch.zeros_like(p, requires_grad=True, device=self.device)
+        mask = torch.zeros_like(graph, requires_grad=True, device=self.device)
 
-        # Set the L largest values in each row to one
         ind = torch.stack(
-            [torch.arange(p.size(0), device=self.device), indices[:, -1]], dim=1
+            [torch.arange(graph_topo.size(0), device=self.device), indices[:, -1]],
+            dim=1,
         )
+        p = graph_topo[ind[:, 0], ind[:, 1]]
 
         topology = torch.scatter(mask, 1, indices[:, :-1], 1)
-        topology[ind[:, 0], ind[:, 1]] = p[ind[:, 0], ind[:, 1]]
-        topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
+        topology[ind[:, 0], ind[:, 1]] = p
+        topo = torch.hstack((topology, -p.unsqueeze(1)))
 
-        return topo.flatten()
+        return topo
 
     def back_mod_PhyR(self, s, n_switches):
         """
@@ -410,7 +410,7 @@ class Utils:
         delta_v = torch.square(v[:, 1:] - opt_v[:, 1:]).pow(2)
         delta_pg = torch.square(pg - opt_pg)
         delta_qg = torch.square(qg - opt_qg)
-       
+
         dist = torch.cat([delta_v, delta_pg, delta_qg], dim=1)
         return dist
 

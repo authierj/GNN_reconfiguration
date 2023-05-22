@@ -128,7 +128,7 @@ def main(args):
         # if i == 150:
         #     for param_group in optimizer.param_groups:
         #         param_group["lr"] = args["lr"] / 10
-        if i == 250 and args["warmStart"]:
+        if i == 0 and args["warmStart"]:
             warm_start = True
 
         start_train = time.time()
