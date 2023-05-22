@@ -98,11 +98,10 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "warmStart_mod_PhyR",
+            "basic_experiments_graphs",
             model.__class__.__name__,
             "_".join(
                 [
-                    f'{args["aggregation"]}',
                     f'{args["numLayers"]}',
                     f'{args["hiddenFeatures"]}',
                     f'{args["lr"]:.0e}',
@@ -124,8 +123,8 @@ def main(args):
     warm_start = False
     # train and test
     for i in range(num_epochs):
-        # if i == 250 and args["warmStart"]:
-        #     warm_start = True
+        if i == 0 and args["warmStart"]:
+            warm_start = True
         start_train = time.time()
         train_epoch_stats = train(
             model, optimizer, cost_fnc, train_loader, args, utils, warm_start

@@ -44,12 +44,12 @@ save_dir = os.path.join("results", "experiments")
 if args["topoLoss"]:
     filepath = os.path.join(save_dir, "_".join(["test_topo_prob", "PhyR"]) + ".txt")
 else:
-    filepath = os.path.join(save_dir, "_".join(["test_prob", "PhyR"]) + ".txt")
+    filepath = os.path.join(save_dir, "_".join(["basic", "experiments", "graphs"]) + ".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-num_runs = 2
+num_runs = 10
 
 if os.path.exists(filepath):
     print("this file already exists and will be completed with new results")

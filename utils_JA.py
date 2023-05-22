@@ -554,7 +554,7 @@ def default_args():
     defaults["corrEps"] = 1e-3
     defaults["switchActivation"] = "sig"
     defaults["warmStart"] = False
-    defaults["PhyR"] = "PhyR"
+    defaults["PhyR"] = "mod_PhyR"
 
     return defaults
 

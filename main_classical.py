@@ -99,7 +99,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "test_prob_PhyR",
+            "basic_experiments_graphs",
             model.__class__.__name__,
             "_".join(
                 [
