@@ -24,6 +24,7 @@ def main(args):
     return:
         save_dir: directory where the results are stored
     """
+    print(args)
     total_time_start = time.time()
     # Making the code device-agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -106,7 +107,7 @@ def main(args):
     warm_start = False
     # train and test
     for i in range(num_epochs):
-        if i == 250 and args["warmStart"]:
+        if i == 0 and args["warmStart"]:
             warm_start = True
         start_train = time.time()
         train_epoch_stats = train(
@@ -328,7 +329,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        default="GatedSwitchGNN_globalMLP",
+        default="GatedSwitchGNN",
         choices=[
             "GatedSwitchGNN",
             "GatedSwitchGNN_globalMLP",
@@ -413,7 +414,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--PhyR",
         type=str,
-        default="PhyR",
+        default="mod_PhyR",
         choices=["PhyR", "back_PhyR", "mod_PhyR", "mod_back_PhyR"],
     )
     parser.add_argument(
