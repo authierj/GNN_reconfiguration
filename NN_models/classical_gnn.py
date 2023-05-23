@@ -273,7 +273,7 @@ class GNN_local_MLP(nn.Module):
         graph_topo[mask] = p_switch
 
         if warm_start:
-            graph_topo = self.PhyR(graph_topo, data.numSwitches)
+            graph_topo = self.PhyR(graph_topo)
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M), device=self.device)
         ps_flow[mask] = SMLP_out[:, 1]
