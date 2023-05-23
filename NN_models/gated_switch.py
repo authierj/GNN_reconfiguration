@@ -104,12 +104,9 @@ class GatedSwitchGNN(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.hstack(
-            (
-                torch.zeros((200, utils.M - utils.numSwitches), device=utils.device),
-                topology.view((x.shape[0], -1)),
-            )
-        )
+        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
+
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1))
