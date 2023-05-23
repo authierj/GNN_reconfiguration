@@ -71,8 +71,6 @@ def main(args):
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
-    output_dim = utils.M + utils.N + utils.numSwitches
-
     model = getattr(classical_gnn, args["model"])(args, utils)
     model = model.to(device)
 
@@ -109,6 +107,7 @@ def main(args):
                 ]
             ),
         )
+    save_dir = "results/test"
     if args["saveModel"] or args["saveAllStats"]:
         i = 0
         while os.path.exists(os.path.join(save_dir, f"v{i}")):
@@ -124,10 +123,6 @@ def main(args):
     warm_start = False
     # train and test
     for i in range(num_epochs):
-        # Update learning rate after 150 epochs
-        # if i == 150:
-        #     for param_group in optimizer.param_groups:
-        #         param_group["lr"] = args["lr"] / 10
         if i == 0 and args["warmStart"]:
             warm_start = True
 
@@ -358,7 +353,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        default="GCN_local_MLP",
+        default="GNN_local_MLP",
         choices=[
             "GCN_Global_MLP_reduced_model",
             "GCN_local_MLP",
@@ -445,7 +440,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--PhyR",
         type=str,
-        default="PhyR",
+        default="mod_PhyR",
         choices=["PhyR", "back_PhyR", "mod_PhyR", "mod_back_PhyR"],
     )
 

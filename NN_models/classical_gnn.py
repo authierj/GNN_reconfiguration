@@ -145,7 +145,9 @@ class GCN_local_MLP(nn.Module):
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
         B, N = data.inv_degree.shape
         D_inv = torch.zeros((B, N, N), device=self.device)
-        D_inv[:, torch.arange(N, device=self.device), torch.arange(N, device=self.device)] = data.inv_degree
+        D_inv[
+            :, torch.arange(N, device=self.device), torch.arange(N, device=self.device)
+        ] = data.inv_degree
 
         v = (
             D_inv
@@ -239,12 +241,14 @@ class GNN_local_MLP(nn.Module):
     def forward(self, data, utils, warm_start=False):
         # input of Rabab's NN
         # x_input = xgraph_xflatten(x, 200, first_node=True)
-        x_input = data.x.view(200, -1, 2)
-        mask = torch.arange(utils.M, device=utils.device).unsqueeze(
-            0
-        ) >= utils.M - data.numSwitches.unsqueeze(1)
 
         xg = self.GNN(data.x, data.edge_index)  # B*N x F
+        x_input = data.x.view(200, -1, 2)
+        mask = (
+            torch.arange(utils.M, device=utils.device).unsqueeze(0)
+            >= utils.M - data.numSwitches.unsqueeze(1)
+        )
+
         num_features = xg.shape[1]
 
         x_nn = xg.view(200, -1, num_features)  # B x N x F

@@ -72,11 +72,9 @@ def main(args):
     test_loader = DenseDataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
-    output_dim = utils.M + utils.N + utils.numSwitches
-
     model = getattr(gated_gnn, args["model"])(args, utils)
-
     model = model.to(device)
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc_JA
 
