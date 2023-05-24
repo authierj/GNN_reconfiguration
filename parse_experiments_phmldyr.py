@@ -11,7 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["test_push_cost_PhyR"]
+    exp_names = ["basic_experiments"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -69,7 +69,7 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("test_push_cost")+15 : line.find("/v")-10]
+                        exp_nn = line[line.find("basic_experiments")+15 : line.find("/v")-10]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
@@ -90,16 +90,16 @@ def parse_NN_size(experiment_filepath):
                             exp_stats["T_topology_mean_var"] = np.var(exp_stats["T_topology_mean_var"], axis=0)
                             exp_stats["V_topology_mean_var"] = np.var(exp_stats["V_topology_mean_var"], axis=0)
                             # fmt: on
-                            plt.figure(n*10)
-                            p_switches = exp_stats["V_pswitch"]
-                            for i in range(p_switches.shape[1]):
-                                plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
-                                plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
+                            # plt.figure(n*10)
+                            # p_switches = exp_stats["V_pswitch"]
+                            # for i in range(p_switches.shape[1]):
+                            #     plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
+                            #     plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
-                            plt.title(f'{n}')
+                            # plt.title(f'{n}')
 
                             plot_exp_NNsize(
-                                exp_stats, run_counter, current_nn, exp_counter
+                                exp_stats, run_counter, "local_MLPs", exp_counter
                             )
                             exp_counter += 1
 
@@ -181,15 +181,15 @@ def parse_NN_size(experiment_filepath):
             exp_stats["V_topology_mean_var"] = np.var(
                 exp_stats["V_topology_mean_var"], axis=0
             )
-            plt.figure(80)
-            p_switches = exp_stats["V_pswitch"]
-            for i in range(p_switches.shape[1]):
-                plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
-                plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
+            # plt.figure(80)
+            # p_switches = exp_stats["V_pswitch"]
+            # for i in range(p_switches.shape[1]):
+            #     plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
+            #     plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
-            plt.title('8')
+            # plt.title('8')
 
-            plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
+            plot_exp_NNsize(exp_stats, run_counter, "global_MLP", exp_counter)
 
     if flag_start:
         begin = exp_filepath.find("/") + 1
@@ -198,26 +198,25 @@ def parse_NN_size(experiment_filepath):
         # add legend and title to the plots
         plt.figure(1)  # train loss
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Training loss, mean across samples")
+        plt.title("Training loss, mean across samples")
         plt.figure(2)  # valid loss
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Validation loss, mean across samples")
+        plt.title("Validation loss, mean across samples")
         plt.figure(3)  # T & V dispatch error, log scale
         plt.legend(loc="upper right")
         plt.title(gnn + ", Dispatch error, log-y")
         plt.figure(4)  # T & V topology error
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Topology error")
+        plt.title("Topology error normalized")
         plt.figure(5)  # V ineq error violation
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Inequality error violation, 0.001")
+        plt.title("Inequality error violation, 0.001")
         plt.figure(6)  # V ineq error violation
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Inequality error violation, 0.01")
+        plt.title("Inequality error violation, 0.01")
         plt.figure(7)  # V ineq error violation
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Switching probability")
-        plt.show()  # enter non-interactive mode, and keep plots
+        
     else:
         print("ERROR: File start ### not found")
 
@@ -233,13 +232,13 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         label=current_nn,
         color=f"C{exp_counter}",
     )
-    plt.fill_between(
-        x=x,
-        y1=-np.sqrt(exp_stats["T_loss_var"]) + exp_stats["T_loss"] / run_counter,
-        y2=np.sqrt(exp_stats["T_loss_var"]) + exp_stats["T_loss"] / run_counter,
-        color=f"C{exp_counter}",
-        alpha=0.2,
-    )
+    # plt.fill_between(
+    #     x=x,
+    #     y1=-np.sqrt(exp_stats["T_loss_var"]) + exp_stats["T_loss"] / run_counter,
+    #     y2=np.sqrt(exp_stats["T_loss_var"]) + exp_stats["T_loss"] / run_counter,
+    #     color=f"C{exp_counter}",
+    #     alpha=0.2,
+    # )
     plt.figure(2)  # valid loss
     plt.yscale("log")
     plt.plot(
@@ -248,13 +247,13 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         label=current_nn,
     )
     plt.ylim([5*1e0,1e4])
-    plt.fill_between(
-        x=x,
-        y1=-np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
-        y2=np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
-        color=f"C{exp_counter}",
-        alpha=0.2,
-    )
+    # plt.fill_between(
+    #     x=x,
+    #     y1=-np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
+    #     y2=np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
+    #     color=f"C{exp_counter}",
+    #     alpha=0.2,
+    # )
     plt.figure(3)  # T & V dispatch error, log scale
     plt.yscale("log")
     plt.plot(
@@ -266,7 +265,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     )  #  + '-V'
     plt.figure(4)  # T & V topology error
     plt.plot(
-        exp_stats["T_topology_mean"] / run_counter,
+        32/15*exp_stats["V_topology_mean"] / run_counter,
         color=f"C{exp_counter}",
     )
     # plt.plot(
@@ -281,11 +280,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     #     color=f"C{exp_counter}",
     #     alpha=0.2,
     # )
-    plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
-    plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
-    plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
-    plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
-    plt.ylim([0,4/7+0.01])
+    # plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
+    # plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
+    # plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
+    # plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
+    plt.ylim([0,1])
 
     plt.figure(5)  # V ineq error violation
     plt.plot(exp_stats["V_ineq_num_viol_0"]/ run_counter)
