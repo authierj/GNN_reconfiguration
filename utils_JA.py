@@ -383,10 +383,7 @@ class Utils:
             delta_topo: the squared distance between the topology chosen by the neural network and the reference topology
         """
 
-        opt_pij, opt_v, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
-        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : ])
-
-
+        _, _, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
         _, _, topology = self.decompose_vars_z_JA(z)
 
         delta_topo = torch.square(topology - opt_topo)

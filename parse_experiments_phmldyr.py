@@ -11,7 +11,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["basic_experiments"]
+    exp_names = ["basic_experiments_comparison"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -45,7 +45,7 @@ def parse_NN_size(experiment_filepath):
     best_topo = np.zeros(500)
     worst_topo = np.zeros(500)
     current_nn = ""
-    n=0
+    n = 0
     with open(experiment_filepath[0]) as exp_file:
         while line := exp_file.readline().rstrip():
             if not flag_start:
@@ -69,13 +69,15 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("basic_experiments")+15 : line.find("/v")-10]
+                        exp_nn = line[
+                            line.find("basic_experiments") + 15 : line.find("/v") - 1
+                        ]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
 
                         if exp_nn != current_nn and current_nn != "":
-                            n+=1
+                            n += 1
                             # plot previous experiment results
                             ## Plotting with new stats (i.e. save results per epoch only)
                             # fmt: off
@@ -97,10 +99,15 @@ def parse_NN_size(experiment_filepath):
                             #     plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
                             # plt.title(f'{n}')
-
-                            plot_exp_NNsize(
-                                exp_stats, run_counter, "local_MLPs", exp_counter
-                            )
+                            
+                            if n == 1:
+                                plot_exp_NNsize(
+                                    exp_stats, run_counter, "PhyR", exp_counter
+                                )
+                            else:
+                                plot_exp_NNsize(
+                                    exp_stats, run_counter, "semi-supervised PhyR", exp_counter
+                                )
                             exp_counter += 1
 
                             # reset for new experiment
@@ -148,24 +155,29 @@ def parse_NN_size(experiment_filepath):
                         if run_counter == 0:
                             best_topo = stats_dict["train_topology_error_mean"].copy()
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
-                        elif stats_dict["train_topology_error_mean"][-1] < best_topo[-1]:
+                        elif (
+                            stats_dict["train_topology_error_mean"][-1] < best_topo[-1]
+                        ):
                             best_topo = stats_dict["train_topology_error_mean"].copy()
-                        elif stats_dict["train_topology_error_mean"][-1] > worst_topo[-1]:
+                        elif (
+                            stats_dict["train_topology_error_mean"][-1] > worst_topo[-1]
+                        ):
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
                         if run_counter == 0:
                             best_topo = stats_dict["train_topology_error_mean"].copy()
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
-                        elif stats_dict["train_topology_error_mean"][-1] < best_topo[-1]:
+                        elif (
+                            stats_dict["train_topology_error_mean"][-1] < best_topo[-1]
+                        ):
                             best_topo = stats_dict["train_topology_error_mean"].copy()
-                        elif stats_dict["train_topology_error_mean"][-1] > worst_topo[-1]:
+                        elif (
+                            stats_dict["train_topology_error_mean"][-1] > worst_topo[-1]
+                        ):
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
                         run_counter += 1  # increment run counter
 
-
-
-
         if flag_start:
-            exp_stats["T_topology_best"] = best_topo 
+            exp_stats["T_topology_best"] = best_topo
             exp_stats["T_topology_worst"] = worst_topo
             exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
             exp_stats["V_loss_var"] = np.var(exp_stats["V_loss_var"], axis=0)
@@ -189,7 +201,7 @@ def parse_NN_size(experiment_filepath):
 
             # plt.title('8')
 
-            plot_exp_NNsize(exp_stats, run_counter, "global_MLP", exp_counter)
+            plot_exp_NNsize(exp_stats, run_counter, "semi-supervised no PhyR", exp_counter)
 
     if flag_start:
         begin = exp_filepath.find("/") + 1
@@ -198,25 +210,24 @@ def parse_NN_size(experiment_filepath):
         # add legend and title to the plots
         plt.figure(1)  # train loss
         plt.legend(loc="upper right")
-        plt.title("Training loss, mean across samples")
-        plt.figure(2)  # valid loss
+        plt.title("Training and validation loss, mean across samples")
+        plt.xlabel('num_epochs')
+        plt.figure(2)  # T & V dispatch error, log scale
         plt.legend(loc="upper right")
-        plt.title("Validation loss, mean across samples")
-        plt.figure(3)  # T & V dispatch error, log scale
+        plt.title("Dispatch error")
+        plt.xlabel('num_epochs')
+        plt.figure(3)  # T & V topology error
         plt.legend(loc="upper right")
-        plt.title(gnn + ", Dispatch error, log-y")
-        plt.figure(4)  # T & V topology error
-        plt.legend(loc="upper right")
-        plt.title("Topology error normalized")
-        plt.figure(5)  # V ineq error violation
+        plt.title("Topology error")
+        plt.xlabel('num_epochs')
+        plt.figure(4)  # V ineq error violation
         plt.legend(loc="upper right")
         plt.title("Inequality error violation, 0.001")
-        plt.figure(6)  # V ineq error violation
+        plt.xlabel('num_epochs')
+        plt.figure(5)  # V ineq error violation
         plt.legend(loc="upper right")
         plt.title("Inequality error violation, 0.01")
-        plt.figure(7)  # V ineq error violation
-        plt.legend(loc="upper right")
-        
+        plt.xlabel('num_epochs')
     else:
         print("ERROR: File start ### not found")
 
@@ -239,14 +250,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     #     color=f"C{exp_counter}",
     #     alpha=0.2,
     # )
-    plt.figure(2)  # valid loss
-    plt.yscale("log")
     plt.plot(
         exp_stats["V_loss"] / run_counter,
+        "--",
         color=f"C{exp_counter}",
-        label=current_nn,
     )
-    plt.ylim([5*1e0,1e4])
     # plt.fill_between(
     #     x=x,
     #     y1=-np.sqrt(exp_stats["V_loss_var"]) + exp_stats["V_loss"] / run_counter,
@@ -254,18 +262,25 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     #     color=f"C{exp_counter}",
     #     alpha=0.2,
     # )
-    plt.figure(3)  # T & V dispatch error, log scale
+    plt.figure(2)  # T & V dispatch error, log scale
     plt.yscale("log")
     plt.plot(
         exp_stats["T_dispatch_mean"] / run_counter,
+        label=current_nn,
         color=f"C{exp_counter}",
     )
     plt.plot(
         exp_stats["V_dispatch_mean"] / run_counter, "--", color=f"C{exp_counter}"
     )  #  + '-V'
-    plt.figure(4)  # T & V topology error
+    plt.figure(3)  # T & V topology error
     plt.plot(
-        32/15*exp_stats["V_topology_mean"] / run_counter,
+        exp_stats["T_topology_mean"] / run_counter,
+        label=current_nn,
+        color=f"C{exp_counter}",
+    )
+    plt.plot(
+        exp_stats["V_topology_mean"] / run_counter,
+        "--",
         color=f"C{exp_counter}",
     )
     # plt.plot(
@@ -284,12 +299,12 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     # plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
     # plt.plot(exp_stats["T_topology_best"],'-.', color=f"C{exp_counter}")
     # plt.plot(exp_stats["T_topology_worst"],'--', color=f"C{exp_counter}")
-    plt.ylim([0,1])
+    plt.ylim([0, 0.15])
 
+    plt.figure(4)  # V ineq error violation
+    plt.plot(exp_stats["V_ineq_num_viol_0"] / run_counter, label=current_nn)
     plt.figure(5)  # V ineq error violation
-    plt.plot(exp_stats["V_ineq_num_viol_0"]/ run_counter)
-    plt.figure(6)  # V ineq error violation
-    plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter)
+    plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter, label=current_nn)
 
     # print final epoch results:
     print("\n\n ---------- \nNN size: {}".format(current_nn))
@@ -305,7 +320,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         )
     )
 
-    
+
 def parse_data_size(experiment_filepath):
     if len(experiment_filepath) > 1:
         print("Warning: only first experiment file will be plotted")
