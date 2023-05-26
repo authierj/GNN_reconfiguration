@@ -122,16 +122,23 @@ def parse_NN_size(experiment_filepath):
                         # fmt: off
                         dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"], op="sum")
                         dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"], op="sum")
+                        dict_agg(exp_stats, 'TE_loss', stats_dict["test_loss"], op="sum")
                         dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'TE_dispatch_mean', stats_dict["test_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"], op="sum")
                         dict_agg(exp_stats, 'T_topology_max', stats_dict["train_topology_error_max"], op="sum")
                         dict_agg(exp_stats, 'T_topology_min', stats_dict["train_topology_error_min"], op="sum")
                         dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'TE_topology_mean', stats_dict["test_topology_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"], op="sum")
+                        dict_agg(exp_stats, 'TE_ineq_num_viol_0', stats_dict["test_ineq_num_viol_0"], op="sum")
+                        dict_agg(exp_stats, 'TE_ineq_num_viol_1', stats_dict["test_ineq_num_viol_1"], op="sum")
+                        dict_agg(exp_stats, 'TE_ineq_mag_max', stats_dict["test_ineq_max"], op="sum")
+                        dict_agg(exp_stats, 'TE_ineq_mag_mean', stats_dict["test_ineq_mean"], op="sum")
                         dict_agg(exp_stats, 'T_loss_var', stats_dict["train_loss"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_loss_var', stats_dict["valid_loss"].copy(), op="vstack")
                         dict_agg(exp_stats, 'T_dispatch_mean_var', stats_dict["train_dispatch_error_mean"].copy(), op="vstack")
@@ -293,7 +300,8 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter)
 
     # print final epoch results:
-    print("\n\n ---------- \nNN size: {}".format(current_nn))
+    print("\n\n ---------- \nNN size: {} \n".format(current_nn))
+    print("validation numbers \n")
     print(
         "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
         "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
@@ -303,6 +311,18 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
             exp_stats["V_ineq_mag_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_max"][-1] / run_counter,
             exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
+        )
+    )
+    print("test numbers \n")
+    print(
+        "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
+        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
+            exp_stats["TE_loss"][-1] / run_counter,
+            exp_stats["TE_dispatch_mean"][-1] / run_counter,
+            exp_stats["TE_topology_mean"][-1] / run_counter,
+            exp_stats["TE_ineq_mag_mean"][-1] / run_counter,
+            exp_stats["TE_ineq_mag_max"][-1] / run_counter,
+            exp_stats["TE_ineq_num_viol_1"][-1] / run_counter,
         )
     )
 

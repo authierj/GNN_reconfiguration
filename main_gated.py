@@ -51,17 +51,15 @@ def main(args):
         (
             torch.arange(0, 3200),
             torch.arange(num_graph_per_dataset, num_graph_per_dataset + 3200),
-            torch.arange(2*num_graph_per_dataset, 2*num_graph_per_dataset + 3200),
         )
     )
     valid_idx = torch.hstack(
         (
             torch.arange(3200, 3600),
             torch.arange(num_graph_per_dataset + 3200, num_graph_per_dataset + 3600),
-            torch.arange(2*num_graph_per_dataset + 3200, 2*num_graph_per_dataset + 3600),
         )
     )
-    test_idx = valid_idx + 400
+    test_idx = torch.arange(2*num_graph_per_dataset, 2*num_graph_per_dataset + 800)
     train_graphs = graph_dataset[train_idx]
     valid_graphs = graph_dataset[valid_idx]
     test_graphs = graph_dataset[test_idx]
@@ -74,7 +72,7 @@ def main(args):
     # Model initialization and optimizer
     model = getattr(gated_gnn, args["model"])(args, utils)
     model = model.to(device)
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
     cost_fnc = utils.obj_fnc_JA
 
@@ -96,7 +94,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "basic_experiments_graphs",
+            "testing",
             model.__class__.__name__,
             "_".join(
                 [
@@ -129,9 +127,10 @@ def main(args):
         )
         end_train = time.time()
         train_time = end_train - start_train
-        valid_epoch_stats = test_or_validate(
+        valid_epoch_stats = validate(
             model, cost_fnc, valid_loader, args, utils, warm_start
         )
+        test_epoch_stats = test(model, cost_fnc, test_loader, args, utils, warm_start)
 
         if i % 10 == 0:
             print(
@@ -145,6 +144,8 @@ def main(args):
                     stats[key] = np.expand_dims(np.array(train_epoch_stats[key]), axis=0)
                 for key in valid_epoch_stats.keys():
                     stats[key] = np.expand_dims(np.array(valid_epoch_stats[key]), axis=0)
+                for key in test_epoch_stats.keys():
+                    stats[key] = np.expand_dims(np.array(valid_epoch_stats[key]), axis=0)
             # fmt: on
             else:
                 for key in train_epoch_stats.keys():
@@ -155,6 +156,13 @@ def main(args):
                         )
                     )
                 for key in valid_epoch_stats.keys():
+                    stats[key] = np.concatenate(
+                        (
+                            stats[key],
+                            np.expand_dims(np.array(valid_epoch_stats[key]), axis=0),
+                        )
+                    )
+                for key in test_epoch_stats.keys():
                     stats[key] = np.concatenate(
                         (
                             stats[key],
@@ -246,6 +254,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
             z_hat.detach(), zc_hat.detach(), data.idx, utils.A
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
+        topo_factor = utils.M / data.numSwitches
         eps_converge = args["corrEps"]
         # fmt: off
         dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
@@ -259,17 +268,17 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'train_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'train_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'train_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'train_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'train_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
         # fmt: on
     # print(f"prediction time: {total_time:.4f}, backprog time: {opt_time:.4f}")
     return epoch_stats
 
 
-def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
+def validate(model, criterion, loader, args, utils, warm_start=False):
     """
-    test the model on the test set or vallidation set
+    test the model on the vallidation set
 
     args:
         model: model to test
@@ -281,7 +290,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         epoch_stats: dictionary of statistics for the epoch
     """
 
-    model.eval() 
+    model.eval()
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
 
@@ -298,6 +307,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             utils.A,
             train=True,
         )
+
         if i == 1:
             _, _, topo = utils.decompose_vars_z_JA(z_hat)
             dict_agg(
@@ -314,6 +324,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             z_hat.detach(), zc_hat.detach(), data.idx, utils.A
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
+        topo_factor = utils.M / data.numSwitches
         eps_converge = args["corrEps"]
         dict_agg(
             epoch_stats,
@@ -332,9 +343,75 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
-            dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            # fmt: on
+        i += 1
+    return epoch_stats
+
+
+def test(model, criterion, loader, args, utils, warm_start=False):
+    """
+    test the model on the test set or vallidation set
+
+    args:
+        model: model to test
+        criterion: loss function
+        loader: data loader
+        args: dictionary of arguments
+        utils: utils object
+    return:
+        epoch_stats: dictionary of statistics for the epoch
+    """
+
+    model.eval()
+    size = len(loader) * args["batchSize"]
+    epoch_stats = {}
+
+    i = 0
+    for data in loader:
+        z_hat, zc_hat = model(data, utils, warm_start)
+        test_loss, soft_weight = total_loss(
+            z_hat,
+            zc_hat,
+            criterion,
+            utils,
+            args,
+            data.idx,
+            utils.A,
+            train=True,
+        )
+
+        dispatch_dist = utils.opt_dispatch_dist_JA(
+            z_hat.detach(), zc_hat.detach(), data.y.detach()
+        )
+        ineq_resid = utils.ineq_resid_JA(
+            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+        )
+        topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
+        topo_factor = utils.M / data.numSwitches
+        eps_converge = args["corrEps"]
+        dict_agg(
+            epoch_stats,
+            "test_loss",
+            torch.sum(test_loss).detach().cpu().numpy() / size,
+            op="sum",
+        )
+        if args["saveModel"]:
+            # fmt: off
+            dict_agg(epoch_stats, 'test_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'test_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats,'test_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'test_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'test_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'test_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'test_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'test_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'test_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
         i += 1
     return epoch_stats
