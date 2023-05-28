@@ -145,7 +145,7 @@ def main(args):
                 for key in valid_epoch_stats.keys():
                     stats[key] = np.expand_dims(np.array(valid_epoch_stats[key]), axis=0)
                 for key in test_epoch_stats.keys():
-                    stats[key] = np.expand_dims(np.array(valid_epoch_stats[key]), axis=0)
+                    stats[key] = np.expand_dims(np.array(test_epoch_stats[key]), axis=0)
             # fmt: on
             else:
                 for key in train_epoch_stats.keys():
@@ -166,21 +166,19 @@ def main(args):
                     stats[key] = np.concatenate(
                         (
                             stats[key],
-                            np.expand_dims(np.array(valid_epoch_stats[key]), axis=0),
+                            np.expand_dims(np.array(test_epoch_stats[key]), axis=0),
                         )
                     )
         else:
             stats = train_epoch_stats
 
-        if i % args["resultsSaveFreq"] == 0 and (
-            args["saveModel"] or args["saveAllStats"]
-        ):
+        if i % args["resultsSaveFreq"] == 0 and args["saveModel"]:
             torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
             with open(file, "wb") as f:
-                # np.save(f, stats)
                 pickle.dump(stats, f)
 
-    if args["saveModel"] or args["saveAllStats"]:
+    # save the last model
+    if args["saveModel"]:
         with open(file, "wb") as f:
             pickle.dump(stats, f)
         torch.save(model.state_dict(), os.path.join(save_dir, "model.dict"))
@@ -216,11 +214,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     total_time = 0
     opt_time = 0
     for data in loader:
-        z_hat, zc_hat = model(data, utils)
-
-        # with profiler.profile(with_stack=True, profile_memory=True) as prof:
-        #     z_hat, zc_hat = model(data, utils)
-        # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=100))
+        z_hat, zc_hat = model(data, utils, warm_start)
 
         train_loss, soft_weight = total_loss(
             z_hat,
