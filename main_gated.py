@@ -237,7 +237,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         if args["saveModel"]:
             dict_agg(epoch_stats, 'train_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats, 'train_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats,'train_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'train_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
             dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
             dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
             dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
