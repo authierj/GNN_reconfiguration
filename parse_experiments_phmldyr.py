@@ -38,10 +38,8 @@ def parse_NN_size(experiment_filepath):
     flag_start = False
     exp_counter = 0
     run_counter = 0
-    best_topo = np.zeros(500)
-    worst_topo = np.zeros(500)
-    best_topo = np.zeros(500)
-    worst_topo = np.zeros(500)
+    # best_topo = np.zeros(500)
+    # worst_topo = np.zeros(500)
     current_nn = ""
     n = 0
     with open(experiment_filepath[0]) as exp_file:
@@ -79,6 +77,7 @@ def parse_NN_size(experiment_filepath):
                             n += 1
                             # plot previous experiment results
                             ## Plotting with new stats (i.e. save results per epoch only)
+                            """
                             # fmt: off
                             exp_stats["T_topology_best"] = best_topo 
                             exp_stats["T_topology_worst"] = worst_topo
@@ -98,7 +97,7 @@ def parse_NN_size(experiment_filepath):
                             #     plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
                             # plt.title(f'{n}')
-
+                            """
                             plot_exp_NNsize(
                                 exp_stats, run_counter, current_nn, exp_counter
                             )
@@ -123,14 +122,19 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"], op="sum")
                         dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"], op="sum")
                         dict_agg(exp_stats, 'TE_loss', stats_dict["test_loss"], op="sum")
+
                         dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'TE_dispatch_mean', stats_dict["test_dispatch_error_mean"], op="sum")
+                        
+                        dict_agg(exp_stats, 'T_voltage_mean', stats_dict["train_voltage_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'V_voltage_mean', stats_dict["valid_voltage_error_mean"], op="sum")
+                        dict_agg(exp_stats, 'TE_voltage_mean', stats_dict["test_voltage_error_mean"], op="sum")
+
                         dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"], op="sum")
-                        dict_agg(exp_stats, 'T_topology_max', stats_dict["train_topology_error_max"], op="sum")
-                        dict_agg(exp_stats, 'T_topology_min', stats_dict["train_topology_error_min"], op="sum")
                         dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"], op="sum")
                         dict_agg(exp_stats, 'TE_topology_mean', stats_dict["test_topology_error_mean"], op="sum")
+                        
                         dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"], op="sum")
@@ -139,6 +143,14 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'TE_ineq_num_viol_1', stats_dict["test_ineq_num_viol_1"], op="sum")
                         dict_agg(exp_stats, 'TE_ineq_mag_max', stats_dict["test_ineq_max"], op="sum")
                         dict_agg(exp_stats, 'TE_ineq_mag_mean', stats_dict["test_ineq_mean"], op="sum")
+                        
+                        dict_agg(exp_stats, 'T_opt_gap', stats_dict["valid_opt_gap"], op="vstack")
+                        dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="vstack")
+                        dict_agg(exp_stats, 'TE_opt_gap', stats_dict["test_opt_gap"], op="vstack")
+                        
+                        """
+                        dict_agg(exp_stats, 'T_topology_max', stats_dict["train_topology_error_max"], op="sum")
+                        dict_agg(exp_stats, 'T_topology_min', stats_dict["train_topology_error_min"], op="sum")
                         dict_agg(exp_stats, 'T_loss_var', stats_dict["train_loss"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_loss_var', stats_dict["valid_loss"].copy(), op="vstack")
                         dict_agg(exp_stats, 'T_dispatch_mean_var', stats_dict["train_dispatch_error_mean"].copy(), op="vstack")
@@ -152,8 +164,7 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'T_topology_mean_var', stats_dict["train_topology_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_topology_mean_var', stats_dict["valid_topology_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_pswitch', stats_dict["valid_pswitch"], op="vstack")
-                        dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="vstack")
-                        dict_agg(exp_stats, 'TE_opt_gap', stats_dict["test_opt_gap"], op="vstack")
+                        """
                         # fmt: on
                         
                         if run_counter == 0:
@@ -181,6 +192,7 @@ def parse_NN_size(experiment_filepath):
                         run_counter += 1  # increment run counter
 
         if flag_start:
+            """
             exp_stats["T_topology_best"] = best_topo
             exp_stats["T_topology_worst"] = worst_topo
             exp_stats["T_loss_var"] = np.var(exp_stats["T_loss_var"], axis=0)
@@ -197,14 +209,14 @@ def parse_NN_size(experiment_filepath):
             exp_stats["V_topology_mean_var"] = np.var(
                 exp_stats["V_topology_mean_var"], axis=0
             )
-            # plt.figure(80)
-            # p_switches = exp_stats["V_pswitch"]
-            # for i in range(p_switches.shape[1]):
-            #     plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
-            #     plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
+            plt.figure(80)
+            p_switches = exp_stats["V_pswitch"]
+            for i in range(p_switches.shape[1]):
+                plt.plot(p_switches[:1000,i], label=f"switch{i}", color=f"C{i}")
+                plt.plot(p_switches[1000:,i], "--", label=f"switch{i}", color=f"C{i}")
 
-            # plt.title('8')
-
+            plt.title('8')
+            """
             plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter)
 
     if flag_start:
@@ -221,13 +233,16 @@ def parse_NN_size(experiment_filepath):
         plt.figure(3)  # T & V dispatch error, log scale
         plt.legend(loc="upper right")
         plt.title(gnn + ", Dispatch error, log-y")
-        plt.figure(4)  # T & V topology error
+        plt.figure(4)  # T & V dispatch error, log scale
+        plt.legend(loc="upper right")
+        plt.title(gnn + ", Voltage error, log-y")
+        plt.figure(5)  # T & V topology error
         plt.legend(loc="upper right")
         plt.title(gnn + ", Topology error")
-        plt.figure(5)  # V ineq error violation
+        plt.figure(6)  # V ineq error violation
         plt.legend(loc="upper right")
         plt.title(gnn + ", Inequality error violation, 0.001")
-        plt.figure(6)  # V ineq error violation
+        plt.figure(7)  # V ineq error violation
         plt.legend(loc="upper right")
         plt.title(gnn + ", Inequality error violation, 0.01")
         # plt.figure(7)  # V ineq error violation
@@ -236,7 +251,6 @@ def parse_NN_size(experiment_filepath):
         # plt.show()  # enter non-interactive mode, and keep plots
     else:
         print("ERROR: File start ### not found")
-
     return
 
 
@@ -290,17 +304,32 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         color=f"C{exp_counter+1}",
         label="test",
     )  #  + '-V'
-    plt.figure(4)  # T & V topology error
+    
+    plt.figure(4)  # T & V dispatch error, log scale
+    plt.yscale("log")
+    plt.plot(
+        exp_stats["T_voltage_mean"] / run_counter,
+        color=f"C{exp_counter}",
+    )
+    plt.plot(
+        exp_stats["V_voltage_mean"] / run_counter, "--", color=f"C{exp_counter}"
+    )  #  + '-V'
+    plt.plot(
+        exp_stats["TE_voltage_mean"] / run_counter,
+        color=f"C{exp_counter+1}",
+        label="test",
+    )  #  + '-V'
+
+    
+    plt.figure(5)  # T & V topology error
     plt.plot(
         exp_stats["T_topology_mean"] / run_counter,
         color=f"C{exp_counter}"
     )
-    plt.figure(4)  # T & V topology error
     plt.plot(
         exp_stats["V_topology_mean"] / run_counter, linestyle='dotted',
         color=f"C{exp_counter}",
     )
-    plt.figure(4)  # T & V topology error
     plt.plot(
         exp_stats["TE_topology_mean"] / run_counter,
         color=f"C{exp_counter+1}", label="test",
@@ -322,35 +351,39 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
 
     # plt.ylim([0,4/7+0.01])
 
-    plt.figure(5)  # V ineq error violation
-    plt.plot(exp_stats["V_ineq_num_viol_0"] / run_counter)
     plt.figure(6)  # V ineq error violation
+    plt.plot(exp_stats["V_ineq_num_viol_0"] / run_counter)
+    plt.figure(7)  # V ineq error violation
     plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter)
 
     # print final epoch results:
     print("\n\n ---------- \nNN size: {} \n".format(current_nn))
     print("validation numbers")
     print(
-        "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
-        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
+        "\n total loss = {} \n dispatch error = {} \n voltage error = {} \n topology error = {} \n ineq viol"
+        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {} \n opt. gap = {}\n".format(
             exp_stats["V_loss"][-1] / run_counter,
             exp_stats["V_dispatch_mean"][-1] / run_counter,
+            exp_stats["V_voltage_mean"][-1] / run_counter,
             exp_stats["V_topology_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_max"][-1] / run_counter,
             exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
+            exp_stats["V_opt_gap"][-1] / run_counter,
         )
     )
     print("\ntest numbers")
     print(
-        "\n total loss = {} \n dispatch error = {} \n topology error = {} \n ineq viol"
-        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {}".format(
+        "\n total loss = {} \n dispatch error = {} \n voltage error = {} \n topology error = {} \n ineq viol"
+        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {} \n opt. gap = {}\n".format(
             exp_stats["TE_loss"][-1] / run_counter,
             exp_stats["TE_dispatch_mean"][-1] / run_counter,
+            exp_stats["TE_voltage_mean"][-1] / run_counter,
             exp_stats["TE_topology_mean"][-1] / run_counter,
             exp_stats["TE_ineq_mag_mean"][-1] / run_counter,
             exp_stats["TE_ineq_mag_max"][-1] / run_counter,
             exp_stats["TE_ineq_num_viol_1"][-1] / run_counter,
+            exp_stats["TE_opt_gap"][-1] / run_counter,
         )
     )
 

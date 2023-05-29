@@ -384,31 +384,45 @@ class Utils:
 
         return delta_topo
 
-    def opt_dispatch_dist_JA(self, z, zc, y):
+    def opt_dispatch_dist_JA(self, zc, y):
         """
         opt_dispatch_dist_JA returns the squared distance between the output of
         the neural network and the completion variable from the reference solution
 
         args:
-            z: the output of the neural network
             zc: the completion variables
             y: the reference solution
         return:
-            dispatch_resid: the squared distance between the output of the neural network and the completion variable from the refernce solution
+            dispatch_resid: the squared distance between the output of the neural network and the completion variable from the reference solution
         """
 
-        _, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
         _, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : :])
-
-        _, v, _ = self.decompose_vars_z_JA(z)
         _, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        delta_v = torch.square(v[:, 1:] - opt_v[:, 1:]).pow(2)
         delta_pg = torch.square(pg - opt_pg)
         delta_qg = torch.square(qg - opt_qg)
 
-        dist = torch.cat([delta_v, delta_pg, delta_qg], dim=1)
+        dist = torch.cat([delta_pg, delta_qg], dim=1)
         return dist
+    
+    def opt_voltage_dist_JA(self, z, y):
+        """
+        opt_voltage_dist_JA returns the squared distance between the output of
+        the neural network and the completion variable from the reference solution
+
+        args:
+            z: the output of the neural network
+            y: the reference solution
+        return:
+            delta_v: the squared distance between the voltage predicted by the neural network and the reference voltage
+        """
+
+        _, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
+        _, v, _ = self.decompose_vars_z_JA(z)
+
+        delta_v = torch.square(v[:, 1:] - opt_v[:, 1:])
+       
+        return delta_v
 
     def opt_gap_JA(self, z, zc, y):
         """
