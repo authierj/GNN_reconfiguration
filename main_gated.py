@@ -249,6 +249,8 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
+        
+        
         eps_converge = args["corrEps"]
         # fmt: off
         dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
@@ -319,6 +321,7 @@ def validate(model, criterion, loader, args, utils, warm_start=False):
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
+        opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         dict_agg(
             epoch_stats,
@@ -328,9 +331,9 @@ def validate(model, criterion, loader, args, utils, warm_start=False):
         )
         if args["saveModel"]:
             # fmt: off
-            dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'valid_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats,'valid_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_mean', torch.sum(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats,'valid_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy()/len(loader), op="sum")
             dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
             dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
             dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
@@ -340,6 +343,7 @@ def validate(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'valid_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
         i += 1
     return epoch_stats
@@ -385,6 +389,7 @@ def test(model, criterion, loader, args, utils, warm_start=False):
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
+        opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         dict_agg(
             epoch_stats,
@@ -406,6 +411,7 @@ def test(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'test_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'test_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'test_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
         i += 1
     return epoch_stats

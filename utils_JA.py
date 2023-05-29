@@ -365,10 +365,8 @@ class Utils:
         opt_dispatch_dist_JA returns the squared distance between the topology chosen by the neural network and the reference topology
 
         args:
-            z_hat: the output of the neural network
+            z: the output of the neural network
             y: the reference solution
-            switch_mask: the mask for the switches
-
         return:
             delta_topo: the squared distance between the topology chosen by the neural network and the reference topology
         """
@@ -392,27 +390,45 @@ class Utils:
         the neural network and the completion variable from the reference solution
 
         args:
-            z_hat: the output of the neural network
-            zc_hat: the completion variables
+            z: the output of the neural network
+            zc: the completion variables
             y: the reference solution
         return:
             dispatch_resid: the squared distance between the output of the neural network and the completion variable from the refernce solution
         """
 
-        opt_pij, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
-        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : :])
+        _, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
+        _, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : :])
 
-        pij, v, _ = self.decompose_vars_z_JA(z)
-        qij, pg, qg = self.decompose_vars_zc_JA(zc)
+        _, v, _ = self.decompose_vars_z_JA(z)
+        _, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        delta_pij = torch.square(pij - opt_pij)
-        delta_qij = torch.square(qij - opt_qij)
         delta_v = torch.square(v[:, 1:] - opt_v[:, 1:]).pow(2)
         delta_pg = torch.square(pg - opt_pg)
         delta_qg = torch.square(qg - opt_qg)
 
         dist = torch.cat([delta_v, delta_pg, delta_qg], dim=1)
         return dist
+
+    def opt_gap_JA(self, z, zc, y):
+        """
+        opt_gap_JA returns the optimality gap of the neural network guess
+
+        args:
+            z: the output of the neural network
+            zc: the completion variables
+            y: the reference solution
+        return:
+            opt_gap: the optimality gap of the neural network guess
+        """
+        opt_z = y[:, : self.zrdim]
+        opt_zc = y[:, self.zrdim :]
+
+        opt_cost = self.obj_fnc_JA(opt_z, opt_zc)
+        cost = self.obj_fnc_JA(z, zc)
+
+        opt_gap = (cost - opt_cost) / opt_cost
+        return opt_gap
 
     def average_sum_distance(self, z_hat, zc_hat, y, switch_mask, zrdim):
         """
