@@ -396,40 +396,45 @@ class Utils:
 
         return delta_topo
 
-    def opt_dispatch_dist_JA(self, z, zc, y):
+    def opt_dispatch_dist_JA(self, zc, y):
         """
         opt_dispatch_dist_JA returns the squared distance between the output of
         the neural network and the completion variable from the reference solution
 
         args:
-            z_hat: the output of the neural network
-            zc_hat: the completion variables
+            zc: the completion variables
             y: the reference solution
         return:
-            dispatch_resid: the squared distance between the output of the neural network and the completion variable from the refernce solution
+            dispatch_resid: the squared distance between the output of the neural network and the completion variable from the reference solution
         """
 
-        opt_pij, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
-        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : :])
+        _, opt_pg, opt_qg = self.decompose_vars_zc_JA(y[:, self.zrdim : :])
+        _, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        pij, v, _ = self.decompose_vars_z_JA(z)
-        qij, pg, qg = self.decompose_vars_zc_JA(zc)
-
-        delta_pij = torch.square(pij - opt_pij)
-        delta_qij = torch.square(qij - opt_qij)
-        delta_v = torch.square(v[:, 1:] - opt_v[:, 1:]).pow(2)
         delta_pg = torch.square(pg - opt_pg)
         delta_qg = torch.square(qg - opt_qg)
-        # switch_decision = topology[switch_mask].reshape_as(y)
-        # delta_topo = torch.square(switch_decision - y) / (
-        #     2 * torch.sum(y, dim=1).view(-1, 1)
-        # )
 
-        # dist = torch.cat(
-        #     (delta_pij, delta_qij, delta_v, delta_pg, delta_qg, delta_topo), dim=1
-        # )
-        dist = torch.cat([delta_v, delta_pg, delta_qg], dim=1)
+        dist = torch.cat([delta_pg, delta_qg], dim=1)
         return dist
+    
+    def opt_voltage_dist_JA(self, z, y):
+        """
+        opt_voltage_dist_JA returns the squared distance between the output of
+        the neural network and the completion variable from the reference solution
+
+        args:
+            z: the output of the neural network
+            y: the reference solution
+        return:
+            delta_v: the squared distance between the voltage predicted by the neural network and the reference voltage
+        """
+
+        _, opt_v, _ = self.decompose_vars_z_JA(y[:, : self.zrdim])
+        _, v, _ = self.decompose_vars_z_JA(z)
+
+        delta_v = torch.square(v[:, 1:] - opt_v[:, 1:])
+       
+        return delta_v
 
     def opt_gap_JA(self, z, zc, y):
         """
@@ -450,6 +455,7 @@ class Utils:
 
         opt_gap = (cost - opt_cost) / opt_cost
         return opt_gap
+
     
     def average_sum_distance(self, z_hat, zc_hat, y, switch_mask, zrdim):
         """
