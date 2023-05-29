@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils_JA import dict_agg
 
+
 def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
@@ -166,7 +167,7 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'V_pswitch', stats_dict["valid_pswitch"], op="vstack")
                         """
                         # fmt: on
-                        
+
                         if run_counter == 0:
                             best_topo = stats_dict["train_topology_error_mean"].copy()
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
@@ -304,7 +305,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         color=f"C{exp_counter+1}",
         label="test",
     )  #  + '-V'
-    
+
     plt.figure(4)  # T & V dispatch error, log scale
     plt.yscale("log")
     plt.plot(
@@ -320,19 +321,17 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         label="test",
     )  #  + '-V'
 
-    
     plt.figure(5)  # T & V topology error
+    plt.plot(exp_stats["T_topology_mean"] / run_counter, color=f"C{exp_counter}")
     plt.plot(
-        exp_stats["T_topology_mean"] / run_counter,
-        color=f"C{exp_counter}"
-    )
-    plt.plot(
-        exp_stats["V_topology_mean"] / run_counter, linestyle='dotted',
+        exp_stats["V_topology_mean"] / run_counter,
+        linestyle="dotted",
         color=f"C{exp_counter}",
     )
     plt.plot(
         exp_stats["TE_topology_mean"] / run_counter,
-        color=f"C{exp_counter+1}", label="test",
+        color=f"C{exp_counter+1}",
+        label="test",
     )
     # plt.plot(
     #     exp_stats["V_topology_mean"] / run_counter, "--", color=f"C{exp_counter}"
@@ -360,8 +359,8 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     print("\n\n ---------- \nNN size: {} \n".format(current_nn))
     print("validation numbers")
     print(
-        "\n total loss = {} \n dispatch error = {} \n voltage error = {} \n topology error = {} \n ineq viol"
-        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {} \n opt. gap = {}\n".format(
+        "\n total loss = {:.2f} \n dispatch error = {:.2e} \n voltage error = {:.2e} \n topology error = {:2f} \n ineq viol"
+        "mean = {:2e} \n ineq viol max = {:2e} \n ineq viol 0.01 = {:1f} \n opt. gap = {:1f}\n".format(
             exp_stats["V_loss"][-1] / run_counter,
             exp_stats["V_dispatch_mean"][-1] / run_counter,
             exp_stats["V_voltage_mean"][-1] / run_counter,
@@ -374,8 +373,8 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     )
     print("\ntest numbers")
     print(
-        "\n total loss = {} \n dispatch error = {} \n voltage error = {} \n topology error = {} \n ineq viol"
-        "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {} \n opt. gap = {}\n".format(
+        "\n total loss = {:.2f} \n dispatch error = {:.2e} \n voltage error = {:.2e} \n topology error = {:2f} \n ineq viol"
+        "mean = {:2e} \n ineq viol max = {:2e} \n ineq viol 0.01 = {:1f} \n opt. gap = {:1f}\n".format(
             exp_stats["TE_loss"][-1] / run_counter,
             exp_stats["TE_dispatch_mean"][-1] / run_counter,
             exp_stats["TE_voltage_mean"][-1] / run_counter,
