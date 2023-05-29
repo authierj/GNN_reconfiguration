@@ -152,7 +152,10 @@ def parse_NN_size(experiment_filepath):
                         dict_agg(exp_stats, 'T_topology_mean_var', stats_dict["train_topology_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_topology_mean_var', stats_dict["valid_topology_error_mean"].copy(), op="vstack")
                         dict_agg(exp_stats, 'V_pswitch', stats_dict["valid_pswitch"], op="vstack")
+                        dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="vstack")
+                        dict_agg(exp_stats, 'TE_opt_gap', stats_dict["test_opt_gap"], op="vstack")
                         # fmt: on
+                        
                         if run_counter == 0:
                             best_topo = stats_dict["train_topology_error_mean"].copy()
                             worst_topo = stats_dict["train_topology_error_mean"].copy()
