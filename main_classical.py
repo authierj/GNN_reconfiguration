@@ -311,6 +311,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M/utils.numSwitches
+        opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
 
         eps_converge = args["corrEps"]
         dict_agg(
@@ -333,6 +334,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'valid_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
         i += 1
     return epoch_stats

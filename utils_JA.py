@@ -431,6 +431,26 @@ class Utils:
         dist = torch.cat([delta_v, delta_pg, delta_qg], dim=1)
         return dist
 
+    def opt_gap_JA(self, z, zc, y):
+        """
+        opt_gap_JA returns the optimality gap of the neural network guess
+
+        args:
+            z: the output of the neural network
+            zc: the completion variables
+            y: the reference solution
+        return:
+            opt_gap: the optimality gap of the neural network guess
+        """
+        opt_z = y[:, : self.zrdim]
+        opt_zc = y[:, self.zrdim :]
+
+        opt_cost = self.obj_fnc_JA(opt_z, opt_zc)
+        cost = self.obj_fnc_JA(z, zc)
+
+        opt_gap = (cost - opt_cost) / opt_cost
+        return opt_gap
+    
     def average_sum_distance(self, z_hat, zc_hat, y, switch_mask, zrdim):
         """
         average_sum_distance returns the average over a batch of the sum of the distances between the variables and the reference solution
