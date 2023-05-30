@@ -335,30 +335,21 @@ class Utils:
         criterion = nn.BCELoss(reduction="sum")
         return criterion(switch_decision, y)
 
-    def squared_error_topology(self, z, y, switch_mask):
+    def squared_error_topology(self, z, y):
         """
         squared_error_topology returns the squared error between the topology chosen by the neural network and the reference topology
 
         args:
             z_hat: the output of the neural network
             y: the reference solution
-            switch_mask: the mask for the switches
 
         return:
             loss: the squared error between the topology chosen by the neural network and the reference topology
         """
-        _, opt_y_no_last, _, _, _, _, _, _, _ = self.decompose_vars_z(
-            y[:, : self.zrdim]
-        )
-        _, y_last, _, _, _ = self.decompose_vars_zc(y[:, self.zrdim : :])
 
-        y = torch.cat((opt_y_no_last, y_last.view(-1, 1)), dim=1)
-        _, _, topology = self.decompose_vars_z_JA(z)
-        switch_decision = topology[switch_mask].reshape_as(y)
+        dist = self.opt_topology_dist_JA(z, y)
 
-        criterion = nn.MSELoss(reduction="none")
-        distance = criterion(switch_decision, y)
-        return torch.sum(distance, dim=1)
+        return torch.sum(dist, dim=1)
 
     def opt_topology_dist_JA(self, z, y):
         """
