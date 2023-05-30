@@ -6,6 +6,7 @@ from torch.autograd import Function
 
 class Utils:
     def __init__(self, data, device):
+        # network data
         self.A = data.A.to(device)  # incidence matrix
         self.M = data.M
         self.N = data.N
@@ -14,13 +15,10 @@ class Utils:
         self.ql = data.ql
         self.Rall = data.Rall.to(device)
         self.Xall = data.Xall.to(device)
-        self.pgUpp = data.pgUpp.to(device)
-        self.pgLow = data.pgLow.to(device)
-        self.qgUpp = data.qgUpp.to(device)
-        self.qgLow = data.qgLow.to(device)
-        self.bigM = data.bigM
-        self.Xall = data.Xall.to(device)
-        self.Rall = data.Rall.to(device)
+        self.pgUpp = data.pgUpp.to(device)  # need to move to data for multiple graphs
+        self.pgLow = data.pgLow.to(device)  # basically always zero
+        self.qgUpp = data.qgUpp.to(device)  # zero for all but feeder
+        self.qgLow = data.qgLow.to(device)  # basically always zero
         self.vUpp = data.vUpp.to(device)
         self.vLow = data.vLow.to(device)
         self.S = data.S
@@ -247,7 +245,11 @@ class Utils:
             0.5 * (v.unsqueeze(1) @ incidence.float()).squeeze() - self.Rall * p_flow
         ) / self.Xall
 
-        # TODO assert here that the equation is satisfied with vi-vj == qij + pij
+        # assert that the equation is satisfied with vi-vj == qij + pij
+        # delta_v = incidence.T.float() @ v[0, :]
+        # loss = 2 * (self.Rall * p_flow + self.Xall * q_flow)
+        # diff = torch.square(delta_v - loss[0,:])
+        # assert torch.max(diff) < 1e-5
 
         q_flow_corrected = topo * q_flow.float()
         p_flow_corrected = topo * p_flow
@@ -274,14 +276,14 @@ class Utils:
         """
         idx = torch.squeeze(idx)
 
-        pij, v, topology = self.decompose_vars_z_JA(z)
-        qij, pg, qg = self.decompose_vars_zc_JA(zc)
+        _, v, topology = self.decompose_vars_z_JA(z)
+        _, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        pg_upp_resid = pg[:, 1:] - self.pgUpp[idx, 1:]
-        pg_low_resid = self.pgLow[idx, 1::] - pg[:, 1::]
+        pg_upp_resid = pg - self.pgUpp[idx, :]
+        pg_low_resid = self.pgLow[idx, :] - pg
 
-        qg_upp_resid = qg[:, 1::] - self.qgUpp[idx, 1::]
-        qg_low_resid = self.qgLow[idx, 1::] - qg[:, 1::]
+        qg_upp_resid = qg - self.qgUpp[idx, :]
+        qg_low_resid = self.qgLow[idx, :] - qg
 
         v_upp_resid = v - self.vUpp
         v_low_resid = self.vLow - v
@@ -297,10 +299,6 @@ class Utils:
                 pg_low_resid,
                 qg_upp_resid,
                 qg_low_resid,
-                pg[:, 0].reshape(-1, 1),
-                -pg[:, 0].reshape(-1, 1),
-                qg[:, 0].reshape(-1, 1),
-                -qg[:, 0].reshape(-1, 1),
                 v_upp_resid,
                 v_low_resid,
                 connectivity,
@@ -311,9 +309,9 @@ class Utils:
 
         violated_resid = torch.clamp(resids, min=0)
         # print(violated_resid[:,0])
-
+        idx = torch.argmax(violated_resid, dim=1)
         return violated_resid
-    
+
     def prob_push(self, z):
         """
         prob_push returns a cost that pushes the switches towards zero or one probabilities and pushes the right number of switches to be closed the number of switches
@@ -326,8 +324,8 @@ class Utils:
 
         _, _, topology = self.decompose_vars_z_JA(z)
 
-        push_speed = torch.sum(-topology  * (topology - 1) , dim=1)
-        physic_informed = (torch.sum(topology, dim=1) - (self.N - 1)) ** 2 
+        push_speed = torch.sum(-topology * (topology - 1), dim=1)
+        physic_informed = (torch.sum(topology, dim=1) - (self.N - 1)) ** 2
         push = push_speed + physic_informed
         return push
 
@@ -365,7 +363,6 @@ class Utils:
         _, _, opt_topo = self.decompose_vars_z_JA(y[:, : self.zrdim])
         _, _, topology = self.decompose_vars_z_JA(z)
 
-        
         criterion = nn.MSELoss(reduction="none")
         distance = criterion(topology, opt_topo)
         return torch.sum(distance, dim=1)
@@ -416,7 +413,7 @@ class Utils:
 
         dist = torch.cat([delta_pg, delta_qg], dim=1)
         return dist
-    
+
     def opt_voltage_dist_JA(self, z, y):
         """
         opt_voltage_dist_JA returns the squared distance between the output of
@@ -433,7 +430,7 @@ class Utils:
         _, v, _ = self.decompose_vars_z_JA(z)
 
         delta_v = torch.square(v[:, 1:] - opt_v[:, 1:])
-       
+
         return delta_v
 
     def opt_gap_JA(self, z, zc, y):
@@ -456,7 +453,6 @@ class Utils:
         opt_gap = (cost - opt_cost) / opt_cost
         return opt_gap
 
-    
     def average_sum_distance(self, z_hat, zc_hat, y, switch_mask, zrdim):
         """
         average_sum_distance returns the average over a batch of the sum of the distances between the variables and the reference solution

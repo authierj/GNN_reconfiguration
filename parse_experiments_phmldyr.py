@@ -10,7 +10,7 @@ def main():
     # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
     # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
     # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["testing_test"]
+    exp_names = ["test_softweight"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -52,6 +52,8 @@ def parse_NN_size(experiment_filepath):
                 continue
             else:
                 # print(line)
+                # exp_dir = line[line.find("dir: ") + 24 :]
+                # exp_filepath = os.path.join("mult_graph_results", exp_dir, "stats.dict")
                 exp_dir = line[line.find("dir: ") + 13 :]
                 exp_filepath = os.path.join("results", exp_dir, "stats.dict")
                 exp_filepath_small = os.path.join(exp_dir, " .dict")
@@ -66,10 +68,7 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[
-                            line.find("testing_test") + 15 : line.find("/v") - 1
-                        ]
-                        exp_nn = "GatedGNN" + exp_nn
+                        exp_nn = line[line.find("results") + 8 : line.find("/v")]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]
@@ -122,32 +121,32 @@ def parse_NN_size(experiment_filepath):
                         # fmt: off
                         dict_agg(exp_stats, 'T_loss', stats_dict["train_loss"], op="sum")
                         dict_agg(exp_stats, 'V_loss', stats_dict["valid_loss"], op="sum")
-                        dict_agg(exp_stats, 'TE_loss', stats_dict["test_loss"], op="sum")
+                        #dict_agg(exp_stats, 'TE_loss', stats_dict["test_loss"], op="sum")
 
                         dict_agg(exp_stats, 'T_dispatch_mean', stats_dict["train_dispatch_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_dispatch_mean', stats_dict["valid_dispatch_error_mean"], op="sum")
-                        dict_agg(exp_stats, 'TE_dispatch_mean', stats_dict["test_dispatch_error_mean"], op="sum")
+                        #dict_agg(exp_stats, 'TE_dispatch_mean', stats_dict["test_dispatch_error_mean"], op="sum")
                         
                         dict_agg(exp_stats, 'T_voltage_mean', stats_dict["train_voltage_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_voltage_mean', stats_dict["valid_voltage_error_mean"], op="sum")
-                        dict_agg(exp_stats, 'TE_voltage_mean', stats_dict["test_voltage_error_mean"], op="sum")
+                        #dict_agg(exp_stats, 'TE_voltage_mean', stats_dict["test_voltage_error_mean"], op="sum")
 
                         dict_agg(exp_stats, 'T_topology_mean', stats_dict["train_topology_error_mean"], op="sum")
                         dict_agg(exp_stats, 'V_topology_mean', stats_dict["valid_topology_error_mean"], op="sum")
-                        dict_agg(exp_stats, 'TE_topology_mean', stats_dict["test_topology_error_mean"], op="sum")
+                        #dict_agg(exp_stats, 'TE_topology_mean', stats_dict["test_topology_error_mean"], op="sum")
                         
                         dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"], op="sum")
-                        dict_agg(exp_stats, 'TE_ineq_num_viol_0', stats_dict["test_ineq_num_viol_0"], op="sum")
-                        dict_agg(exp_stats, 'TE_ineq_num_viol_1', stats_dict["test_ineq_num_viol_1"], op="sum")
-                        dict_agg(exp_stats, 'TE_ineq_mag_max', stats_dict["test_ineq_max"], op="sum")
-                        dict_agg(exp_stats, 'TE_ineq_mag_mean', stats_dict["test_ineq_mean"], op="sum")
+                        #dict_agg(exp_stats, 'TE_ineq_num_viol_0', stats_dict["test_ineq_num_viol_0"], op="sum")
+                        #dict_agg(exp_stats, 'TE_ineq_num_viol_1', stats_dict["test_ineq_num_viol_1"], op="sum")
+                        #dict_agg(exp_stats, 'TE_ineq_mag_max', stats_dict["test_ineq_max"], op="sum")
+                        #dict_agg(exp_stats, 'TE_ineq_mag_mean', stats_dict["test_ineq_mean"], op="sum")
                         
-                        dict_agg(exp_stats, 'T_opt_gap', stats_dict["valid_opt_gap"], op="vstack")
-                        dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="vstack")
-                        dict_agg(exp_stats, 'TE_opt_gap', stats_dict["test_opt_gap"], op="vstack")
+                        dict_agg(exp_stats, 'T_opt_gap', stats_dict["valid_opt_gap"], op="sum")
+                        dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="sum")
+                        #dict_agg(exp_stats, 'TE_opt_gap', stats_dict["test_opt_gap"], op="sum")
                         
                         """
                         dict_agg(exp_stats, 'T_topology_max', stats_dict["train_topology_error_max"], op="sum")
@@ -261,7 +260,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.yscale("log")
     plt.plot(
         exp_stats["T_loss"] / run_counter,
-        label="current_nn",
+        label=current_nn,
         color=f"C{exp_counter}",
     )
     # plt.fill_between(
@@ -278,11 +277,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         color=f"C{exp_counter}",
         label="validation",
     )
-    plt.plot(
-        exp_stats["TE_loss"] / run_counter,
-        color=f"C{exp_counter+1}",
-        label="test",
-    )
+    # plt.plot(
+    #     exp_stats["TE_loss"] / run_counter,
+    #     color=f"C{exp_counter+1}",
+    #     label="test",
+    # )
     plt.ylim([5 * 1e0, 1e4])
     # plt.fill_between(
     #     x=x,
@@ -300,11 +299,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.plot(
         exp_stats["V_dispatch_mean"] / run_counter, "--", color=f"C{exp_counter}"
     )  #  + '-V'
-    plt.plot(
-        exp_stats["TE_dispatch_mean"] / run_counter,
-        color=f"C{exp_counter+1}",
-        label="test",
-    )  #  + '-V'
+    # plt.plot(
+    #     exp_stats["TE_dispatch_mean"] / run_counter,
+    #     color=f"C{exp_counter+1}",
+    #     label="test",
+    # )  #  + '-V'
 
     plt.figure(4)  # T & V dispatch error, log scale
     plt.yscale("log")
@@ -315,11 +314,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.plot(
         exp_stats["V_voltage_mean"] / run_counter, "--", color=f"C{exp_counter}"
     )  #  + '-V'
-    plt.plot(
-        exp_stats["TE_voltage_mean"] / run_counter,
-        color=f"C{exp_counter+1}",
-        label="test",
-    )  #  + '-V'
+    # plt.plot(
+    #     exp_stats["TE_voltage_mean"] / run_counter,
+    #     color=f"C{exp_counter+1}",
+    #     label="test",
+    # )  #  + '-V'
 
     plt.figure(5)  # T & V topology error
     plt.plot(exp_stats["T_topology_mean"] / run_counter, color=f"C{exp_counter}")
@@ -328,11 +327,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
         linestyle="dotted",
         color=f"C{exp_counter}",
     )
-    plt.plot(
-        exp_stats["TE_topology_mean"] / run_counter,
-        color=f"C{exp_counter+1}",
-        label="test",
-    )
+    # plt.plot(
+    #     exp_stats["TE_topology_mean"] / run_counter,
+    #     color=f"C{exp_counter+1}",
+    #     label="test",
+    # )
     # plt.plot(
     #     exp_stats["V_topology_mean"] / run_counter, "--", color=f"C{exp_counter}"
     # )  # + '-V'
@@ -359,8 +358,8 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     print("\n\n ---------- \nNN size: {} \n".format(current_nn))
     print("validation numbers")
     print(
-        "\n total loss = {:.2f} \n dispatch error = {:.2e} \n voltage error = {:.2e} \n topology error = {:2f} \n ineq viol"
-        "mean = {:2e} \n ineq viol max = {:2e} \n ineq viol 0.01 = {:1f} \n opt. gap = {:1f}\n".format(
+        "\n total loss = '{:.2f}' \n dispatch error = '{:.2e}' \n voltage error = '{:.2e}' \n topology error = '{:.4f}' \n ineq viol"
+        "mean = '{:.2e}' \n ineq viol max = '{:.2e}' \n ineq viol 0.01 = '{:.1f}' \n opt. gap = '{:.1f}'\n".format(
             exp_stats["V_loss"][-1] / run_counter,
             exp_stats["V_dispatch_mean"][-1] / run_counter,
             exp_stats["V_voltage_mean"][-1] / run_counter,
@@ -369,22 +368,38 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
             exp_stats["V_ineq_mag_max"][-1] / run_counter,
             exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
             exp_stats["V_opt_gap"][-1] / run_counter,
+            # exp_stats["V_opt_gap"][-1] / run_counter,
         )
     )
-    print("\ntest numbers")
-    print(
-        "\n total loss = {:.2f} \n dispatch error = {:.2e} \n voltage error = {:.2e} \n topology error = {:2f} \n ineq viol"
-        "mean = {:2e} \n ineq viol max = {:2e} \n ineq viol 0.01 = {:1f} \n opt. gap = {:1f}\n".format(
-            exp_stats["TE_loss"][-1] / run_counter,
-            exp_stats["TE_dispatch_mean"][-1] / run_counter,
-            exp_stats["TE_voltage_mean"][-1] / run_counter,
-            exp_stats["TE_topology_mean"][-1] / run_counter,
-            exp_stats["TE_ineq_mag_mean"][-1] / run_counter,
-            exp_stats["TE_ineq_mag_max"][-1] / run_counter,
-            exp_stats["TE_ineq_num_viol_1"][-1] / run_counter,
-            exp_stats["TE_opt_gap"][-1] / run_counter,
-        )
-    )
+
+    # print(
+    #     "\n total loss = {} \n dispatch error = {} \n voltage error = {} \n topology error = {} \n ineq viol"
+    #     "mean = {} \n ineq viol max = {} \n ineq viol 0.01 = {} \n opt. gap = {}\n".format(
+    #         exp_stats["V_loss"][-1] / run_counter,
+    #         exp_stats["V_dispatch_mean"][-1] / run_counter,
+    #         exp_stats["V_voltage_mean"][-1] / run_counter,
+    #         exp_stats["V_topology_mean"][-1] / run_counter,
+    #         exp_stats["V_ineq_mag_mean"][-1] / run_counter,
+    #         exp_stats["V_ineq_mag_max"][-1] / run_counter,
+    #         exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
+    #         np.mean(exp_stats["V_opt_gap"][:, -1]) / run_counter,
+    #     )
+    # )
+    # print("\ntest numbers")
+    # print(
+    #     "\n total loss = '{:.2f}' \n dispatch error = '{:.2e}' \n voltage error = '{:.2e}' \n topology error = '{:.4f}' \n ineq viol"
+    #     "mean = '{:.2e}' \n ineq viol max = '{:.2e}' \n ineq viol 0.01 = '{:.1f}' \n opt. gap = '{:.1f}'\n".format(
+    #         exp_stats["TE_loss"][-1] / run_counter,
+    #         exp_stats["TE_dispatch_mean"][-1] / run_counter,
+    #         exp_stats["TE_voltage_mean"][-1] / run_counter,
+    #         exp_stats["TE_topology_mean"][-1] / run_counter,
+    #         np.mean(exp_stats["TE_ineq_mag_mean"][-1, :]) / run_counter,
+    #         np.mean(exp_stats["TE_ineq_mag_max"][-1, :]) / run_counter,
+    #         exp_stats["TE_ineq_num_viol_1"][-1] / run_counter,
+    #         np.mean(exp_stats["TE_opt_gap"][:,-1]) / run_counter,
+    #     )
+    # )
+
 
 if __name__ == "__main__":
     print("Plotting ------")

@@ -10,6 +10,8 @@ dataprofiles/.DS_Store
 results/*
 results_copy/*
 results_previous/*
+final_results/*
+mult_graph_results/*
 plots/*
 datasets/baranwu33/*
 datasets/node4/*
