@@ -81,11 +81,10 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "warmStart_mod_PhyR",
+            "testing2",
             model.__class__.__name__,
             "_".join(
                 [
-                    f'{args["aggregation"]}',
                     f'{args["numLayers"]}',
                     f'{args["hiddenFeatures"]}',
                     f'{args["lr"]:.0e}',
@@ -109,6 +108,8 @@ def main(args):
     for i in range(num_epochs):
         if i == 0 and args["warmStart"]:
             warm_start = True
+        if i == 999:
+            print("hi")
         start_train = time.time()
         train_epoch_stats = train(
             model, optimizer, cost_fnc, train_loader, args, utils, warm_start
@@ -195,15 +196,16 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     opt_time = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
-        train_loss, soft_weight = total_loss(
+        train_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
+            data.pg_upp,
+            data.qg_upp,
             utils.A,
-            train=True,
+            data.y
         )
         if args["topoLoss"]:
             train_loss += args["topoWeight"] * utils.squared_error_topology(
@@ -226,21 +228,20 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, utils.A
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / utils.numSwitches
-        opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
         eps_converge = args["corrEps"]
         # fmt: off
         dict_agg(epoch_stats, 'train_loss', torch.sum(train_loss).detach().cpu().numpy()/size, op='sum')
         if args["saveModel"]:
-            dict_agg(epoch_stats, 'train_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
-            dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'train_ineq_max', torch.sum(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'train_ineq_mean', torch.sum(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'train_ineq_min', torch.sum(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_0', torch.sum(ineq_resid > eps_converge).float().detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_1', torch.sum(ineq_resid > 10 * eps_converge).float().detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'train_ineq_num_viol_2', torch.sum(ineq_resid > 100 * eps_converge).float().detach().cpu().numpy()/size, op="sum")
             dict_agg(epoch_stats, 'train_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'train_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
@@ -274,15 +275,16 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     i = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
-        valid_loss, soft_weight = total_loss(
+        valid_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
+            data.pg_upp,
+            data.qg_upp,
             utils.A,
-            train=True,
+            data.y
         )
         if i == 1:
             _, _, topo = utils.decompose_vars_z_JA(z_hat)
@@ -296,12 +298,25 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, utils.A
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / utils.numSwitches
-        opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
+        # opt_valid_loss = total_loss(
+        #     data.y[:,:utils.zrdim],
+        #     data.y[:,utils.zrdim:],
+        #     criterion,
+        #     utils,
+        #     args,
+        #     data.pg_upp,
+        #     data.qg_upp,
+        #     utils.A,
+        #     data.y
+        # )
+        # opt_gap = (valid_loss - opt_valid_loss)/opt_valid_loss      
         eps_converge = args["corrEps"]
+        utils.optimality_distance(z_hat.detach(), zc_hat.detach(), data.y.detach())
+        
         dict_agg(
             epoch_stats,
             "valid_loss",
@@ -310,12 +325,12 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
         )
         if args["saveModel"]:
             # fmt: off
-            dict_agg(epoch_stats, 'valid_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_max', torch.sum(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy()/size, op="sum")
             dict_agg(epoch_stats, 'valid_ineq_mean', torch.sum(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy()/size, op="sum")
-            dict_agg(epoch_stats, 'valid_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy()/len(loader), op="sum")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
-            dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_min', torch.sum(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_0', torch.sum(ineq_resid > eps_converge).float().detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_1', torch.sum(ineq_resid > 10 * eps_converge).float().detach().cpu().numpy()/size, op="sum")
+            dict_agg(epoch_stats, 'valid_ineq_num_viol_2', torch.sum(ineq_resid > 100 * eps_converge).float().detach().cpu().numpy()/size, op="sum")
             dict_agg(epoch_stats, 'valid_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
@@ -323,7 +338,7 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'valid_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'valid_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
-            dict_agg(epoch_stats, 'valid_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
+            # dict_agg(epoch_stats, 'valid_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
         i += 1
     return epoch_stats

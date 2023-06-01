@@ -17,6 +17,7 @@ class MyGraph(Graph):
         else:
             return super().__cat_dim__(key, value, *args, **kwargs)
 
+
 class GraphDataSet(InMemoryDataset):
     def __init__(self, root="datasets/node4"):
         super(GraphDataSet, self).__init__(root)
@@ -72,7 +73,7 @@ class GraphDataSet(InMemoryDataset):
         cases = data["case_data_all"][0][0]
         pl = cases["PL"].T
         ql = cases["QL"].T
-        x = torch.dstack((from_np(pl), from_np(ql))).float()
+        x = torch.dstack((from_np(pl), from_np(ql)))
 
         network = data["network_data"][0, 0]
         n = np.squeeze(network[5]).item(0)
@@ -101,14 +102,13 @@ class GraphDataSet(InMemoryDataset):
 
         for i in range(y.shape[0]):
             # features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
-            graph = MyGraph(
-                x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :]
-            )
+            graph = MyGraph(x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :])
             data_list.append(graph)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
         # could also maybe save the slices sperately, could be useful for graphs of multiple sizes
+
 
 class GraphDataSetWithSwitches(InMemoryDataset):
     def __init__(self, root="datasets/node4"):
@@ -122,7 +122,7 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return "new_graph_switches.pt"
+        return "testing.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -169,7 +169,10 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
         pl = cases["PL"].T
         ql = cases["QL"].T
-        x = torch.dstack((from_np(pl), from_np(ql))).float()
+        x = torch.dstack((from_np(pl), from_np(ql)))
+
+        pg_upp = from_np(cases["PGUpp"].T)
+        qg_upp = from_np(cases["QGUpp"].T)
 
         n = np.squeeze(network[5]).item(0)
         m = np.squeeze(network[6]).item(0)
@@ -202,7 +205,7 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
         z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
 
-        y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
+        y = torch.hstack((from_np(z_JA), from_np(zc_JA)))
 
         data_list = []
 
@@ -211,6 +214,8 @@ class GraphDataSetWithSwitches(InMemoryDataset):
                 x=x[i, :, :],
                 A=A.to_dense().bool(),
                 S=S.to_dense().bool(),
+                pg_upp=pg_upp[i, :],
+                qg_upp=qg_upp[i, :],
                 idx=i,
                 y=y[i, :],
             )

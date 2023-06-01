@@ -7,10 +7,7 @@ from utils_JA import dict_agg
 
 
 def main():
-    # exp_names = ["GatedSwitchGNN_globalMLP_lr_test","GatedSwitchGNN_globalMLP_numLayers_test", "GatedSwitchGNN_globalMLP_hiddenFeatures_test"]
-    # exp_names = ["GatedSwitchGNN_lr_test","GatedSwitchGNN_numLayers_test", "GatedSwitchGNN_hiddenFeatures_test"]
-    # exp_names = ["GCN_Global_MLP_reduced_model_numLayers_test", "GCN_Global_MLP_reduced_model_hiddenFeatures_test"]
-    exp_names = ["test_softweight"]
+    exp_names = ["ineq_corr"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -52,8 +49,8 @@ def parse_NN_size(experiment_filepath):
                 continue
             else:
                 # print(line)
-                # exp_dir = line[line.find("dir: ") + 24 :]
-                # exp_filepath = os.path.join("mult_graph_results", exp_dir, "stats.dict")
+                # exp_dir = line[line.find("dir: ") + 19 :]
+                # exp_filepath = os.path.join("final_results", exp_dir, "stats.dict")
                 exp_dir = line[line.find("dir: ") + 13 :]
                 exp_filepath = os.path.join("results", exp_dir, "stats.dict")
                 exp_filepath_small = os.path.join(exp_dir, " .dict")
@@ -136,7 +133,7 @@ def parse_NN_size(experiment_filepath):
                         #dict_agg(exp_stats, 'TE_topology_mean', stats_dict["test_topology_error_mean"], op="sum")
                         
                         dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
-                        dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
+                        dict_agg(exp_stats, 'V_ineq_num_viol_2', stats_dict["valid_ineq_num_viol_2"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"], op="sum")
                         #dict_agg(exp_stats, 'TE_ineq_num_viol_0', stats_dict["test_ineq_num_viol_0"], op="sum")
@@ -245,10 +242,12 @@ def parse_NN_size(experiment_filepath):
         plt.figure(7)  # V ineq error violation
         plt.legend(loc="upper right")
         plt.title(gnn + ", Inequality error violation, 0.01")
+        plt.figure(8)
+        plt.title("magnitude")
         # plt.figure(7)  # V ineq error violation
         # plt.legend(loc="upper right")
         # plt.title(gnn + ", Switching probability")
-        # plt.show()  # enter non-interactive mode, and keep plots
+        plt.show()  # enter non-interactive mode, and keep plots
     else:
         print("ERROR: File start ### not found")
     return
@@ -352,7 +351,11 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.figure(6)  # V ineq error violation
     plt.plot(exp_stats["V_ineq_num_viol_0"] / run_counter)
     plt.figure(7)  # V ineq error violation
-    plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter)
+    plt.plot(exp_stats["V_ineq_num_viol_2"] / run_counter)
+    plt.figure(8)
+    plt.plot(exp_stats["V_ineq_mag_mean"] / run_counter)
+    plt.plot(exp_stats["V_ineq_mag_max"] / run_counter)
+    plt.yscale("log")
 
     # print final epoch results:
     print("\n\n ---------- \nNN size: {} \n".format(current_nn))
@@ -366,7 +369,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
             exp_stats["V_topology_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_max"][-1] / run_counter,
-            exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
+            exp_stats["V_ineq_num_viol_2"][-1] / run_counter,
             exp_stats["V_opt_gap"][-1] / run_counter,
             # exp_stats["V_opt_gap"][-1] / run_counter,
         )

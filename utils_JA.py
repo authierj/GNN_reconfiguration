@@ -15,10 +15,12 @@ class Utils:
         self.ql = data.ql
         self.Rall = data.Rall.to(device)
         self.Xall = data.Xall.to(device)
-        self.pgUpp = data.pgUpp.to(device)  # need to move to data for multiple graphs
-        self.pgLow = data.pgLow.to(device)  # basically always zero
-        self.qgUpp = data.qgUpp.to(device)  # zero for all but feeder
-        self.qgLow = data.qgLow.to(device)  # basically always zero
+        # self.pgUpp = data.pgUpp.to(device)  # move to data
+        # self.pgLow = data.pgLow.to(device)  # basically always zero
+        self.pgLow = 0
+        # self.qgUpp = data.qgUpp.to(device)  # move to data
+        # self.qgLow = data.qgLow.to(device)  # basically always zero
+        self.qgLow = 0 
         self.vUpp = data.vUpp.to(device)
         self.vLow = data.vLow.to(device)
         self.S = data.S
@@ -108,11 +110,10 @@ class Utils:
         return: the approximate line power losses
         """
 
-        pij, _, topology = self.decompose_vars_z_JA(z)
+        pij, _, _ = self.decompose_vars_z_JA(z)
         qij, _, _ = self.decompose_vars_zc_JA(zc)
 
         fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
-        # prob_push = torch.sum(topology * (topology -1), dim=1)
         return fncval
 
     def PhyR(self, s, n_switches):
@@ -223,7 +224,7 @@ class Utils:
 
         return result.flatten()
 
-    def complete_JA(self, x, v, p_flow, topo, incidence):
+    def complete_JA(self, x, v, p_flow, topo):
         """
         return the completion variables to satisfy the power flow equations
 
@@ -232,7 +233,6 @@ class Utils:
             v: the voltage magnitudes
             p_flow: the active power flows
             topo: the topology of the graph
-            incidence: the incidence matrix of the graph
 
         return:
             pg: the active power generation
@@ -240,9 +240,17 @@ class Utils:
             p_flow_corrected: the active power flows corrected for the topology
             q_flow_corrected: the reactive power flows corrected for the topology
         """
+        # test = (v.unsqueeze(1) @ self.A.float()).squeeze()
+        # valid = v[0,:] @ self.A.float()
+        # assert torch.max(torch.abs(test[0,:] - valid)) < 1e-4
+
+
+        # test1 = 0.5 * (v.unsqueeze(1).double() @ self.A).squeeze()
+        # test2 = self.Rall * p_flow.double()
+        # result = (test1 - test2)/ self.Xall
 
         q_flow = (
-            0.5 * (v.unsqueeze(1) @ incidence.float()).squeeze() - self.Rall * p_flow
+            0.5 * (v.unsqueeze(1).double() @ self.A).squeeze() - self.Rall * p_flow.double()
         ) / self.Xall
 
         # assert that the equation is satisfied with vi-vj == qij + pij
@@ -251,18 +259,32 @@ class Utils:
         # diff = torch.square(delta_v - loss[0,:])
         # assert torch.max(diff) < 1e-5
 
-        q_flow_corrected = topo * q_flow.float()
+        q_flow_corrected = topo * q_flow.double()
         p_flow_corrected = topo * p_flow
 
         pl = x[:, :, 0]
         ql = x[:, :, 1]
 
-        pg = pl - (incidence.float() @ p_flow_corrected.unsqueeze(2)).squeeze()
-        qg = ql - (incidence.float() @ q_flow_corrected.unsqueeze(2)).squeeze()
+        # A = self.A.unsqueeze(0).expand(200, -1, -1)
+
+        # test = torch.matmul(A.float(), p_flow_corrected.unsqueeze(-1)).squeeze()
+        pg = pl + (self.A @ p_flow_corrected.unsqueeze(-1).double()).squeeze()
+        qg = ql + (self.A @ q_flow_corrected.unsqueeze(-1).double()).squeeze()
+
+        #debug:
+        # pl0 = pl[0,:]
+        # ql0 = ql[0,:]
+        # p_flow_corrected0 = p_flow_corrected[0,:]   
+        # q_flow_corrected0 = q_flow_corrected[0,:]
+        # pg0 = pl0 - self.A.float() @ p_flow_corrected0
+        # qg0 = ql0 - self.A.float() @ q_flow_corrected0
+
+        # assert torch.max(torch.abs(pg0 - pg[0,:])) < 1e-4 and torch.max(torch.abs(qg0 - qg[0,:])) < 1e-4
+
 
         return pg, qg, p_flow_corrected, q_flow_corrected
 
-    def ineq_resid_JA(self, z, zc, idx, incidence):
+    def ineq_resid_JA(self, z, zc, pg_upp, qg_upp, incidence):
         """
         ineq_resid returns the violation of the inequality constraints
 
@@ -274,31 +296,29 @@ class Utils:
         return:
             violated_resids: the value of the violation of the inequality constraints
         """
-        idx = torch.squeeze(idx)
-
         _, v, topology = self.decompose_vars_z_JA(z)
         _, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        pg_upp_resid = pg - self.pgUpp[idx, :]
-        pg_low_resid = self.pgLow[idx, :] - pg
+        pg_upp_resid = pg - pg_upp
+        pg_low_resid = self.pgLow - pg
 
-        qg_upp_resid = qg - self.qgUpp[idx, :]
-        qg_low_resid = self.qgLow[idx, :] - qg
+        qg_upp_resid = qg - qg_upp
+        qg_low_resid = self.qgLow - qg
 
         v_upp_resid = v - self.vUpp
         v_low_resid = self.vLow - v
 
         # TODO discuss with Rabab
         connectivity = (
-            1 - (torch.abs(incidence.float()) @ topology.unsqueeze(2)).squeeze()
+            1 - (torch.abs(incidence) @ topology.unsqueeze(2).double()).squeeze()
         )
 
         resids = torch.cat(
             [
                 pg_upp_resid,
                 pg_low_resid,
-                qg_upp_resid,
-                qg_low_resid,
+                1000*qg_upp_resid,
+                1000*qg_low_resid,
                 v_upp_resid,
                 v_low_resid,
                 connectivity,
@@ -449,6 +469,15 @@ class Utils:
 
         opt_cost = self.obj_fnc_JA(opt_z, opt_zc)
         cost = self.obj_fnc_JA(z, zc)
+        ineq_dist = self.ineq_resid_JA(z, zc, pg_upp, qg_upp, incidence) 
+        ineq_cost = torch.linalg.vector_norm(ineq_dist, dim=1)  # gives norm for scalar weight
+
+        soft_weight = args["softWeight"]
+
+        total_loss = obj_cost + soft_weight * ineq_cost
+        return total_loss
+
+
 
         opt_gap = (cost - opt_cost) / opt_cost
         return opt_gap
@@ -487,6 +516,27 @@ class Utils:
 
         return average_sum_distance
 
+    def optimality_distance(self, z_hat, zc_hat, y):
+        """
+        optimality distance returns the distance between the guess of the neural network and the reference solution
+        """
+        opt_z = y[:, : self.zrdim]
+        opt_zc = y[:, self.zrdim :]
+
+        pij, v, _ = self.decompose_vars_z_JA(z_hat)
+        qij, pg, qg = self.decompose_vars_zc_JA(zc_hat)
+
+        opt_pij, opt_v, _ = self.decompose_vars_z_JA(opt_z)
+        opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(opt_zc)
+
+        pij_gap = torch.sum(torch.square(pij - opt_pij), dim=1)
+        qij_gap = torch.sum(torch.square(qij - opt_qij), dim=1)
+        v_gap = torch.sum(torch.square(v - opt_v), dim=1)
+        pg_gap = torch.sum(torch.square(pg - opt_pg), dim=1)
+        qg_gap = torch.sum(torch.square(qg - opt_qg), dim=1)
+
+        return pij_gap + qij_gap + v_gap + pg_gap + qg_gap
+
 
 def xgraph_xflatten(x_graph, batch_size, first_node=False):
     # TODO see how the epochs
@@ -511,7 +561,7 @@ def xgraph_xflatten(x_graph, batch_size, first_node=False):
     return xNN
 
 
-def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
+def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
     """
     total loss returns the sum of the loss function and norm of the violation of
     the inequality constraints multiplied by the soft weight
@@ -531,8 +581,9 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
     """
 
     obj_cost = criterion(z, zc)
+    supervised_cost = utils.optimality_distance(z, zc, y)
     ineq_dist = utils.ineq_resid_JA(
-        z, zc, idx, incidence
+        z, zc, pg_upp, qg_upp, incidence
     )  # gives update for vector weight
     # print(ineq_dist[0, :])
     ineq_cost = torch.linalg.vector_norm(
@@ -542,7 +593,7 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
     soft_weight = args["softWeight"]
 
     total_loss = obj_cost + soft_weight * ineq_cost
-    return total_loss, soft_weight
+    return supervised_cost
 
 
 def dict_agg(stats, key, value, op):

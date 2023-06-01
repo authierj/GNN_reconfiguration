@@ -104,9 +104,8 @@ class GatedSwitchGNN(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
-
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1))
@@ -136,21 +135,32 @@ class GatedSwitchGNN(nn.Module):
         p_flow = ps_flow + pc_flow
 
         v = (
-            utils.D_inv.float()
-            @ utils.Incidence_parent.float()
-            @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + utils.D_inv.float()
-            @ utils.Incidence_child.float()
-            @ (vc_child + vs_child).unsqueeze(2).float()
+            utils.D_inv
+            @ utils.Incidence_parent
+            @ (vc_parent + vs_parent).unsqueeze(2).double()
+            + utils.D_inv
+            @ utils.Incidence_child
+            @ (vc_child + vs_child).unsqueeze(2).double()
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x, v, p_flow, graph_topo, utils.A
+            data.x, v, p_flow, graph_topo
         )
 
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
+
+        # opt_z = data.y[:, : utils.zrdim]
+        # opt_pij, opt_v, opt_topo = utils.decompose_vars_z_JA(opt_z)
+        # opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(data.x, opt_v, opt_pij, opt_topo)
+
+        # opt_zc = data.y[:, utils.zrdim :]
+        # opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
+
+        # assert torch.allclose(opt_qij, opt_cqij, atol=1e-4), "qij not equal"
+        # assert torch.allclose(opt_qg, opt_cqg, atol=1e-4), "qg not equal"
+        # assert torch.allclose(opt_pg, opt_cpg, atol=1e-4), "pg not equal"
 
         return z, zc
 
@@ -160,7 +170,9 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         super().__init__()
         output_dim = utils.M + utils.N + utils.numSwitches
         self.Encoder = GatedSwitchesEncoder(args)
-        self.MLP = GlobalMLP_reduced_switch(args, utils.N + utils.numSwitches, output_dim)
+        self.MLP = GlobalMLP_reduced_switch(
+            args, utils.N + utils.numSwitches, output_dim
+        )
         self.device = args["device"]
         self.PhyR = getattr(utils, args["PhyR"])
         if args["switchActivation"] == "sig":
@@ -192,7 +204,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         v = MLP_out[:, utils.M : utils.M + utils.N]

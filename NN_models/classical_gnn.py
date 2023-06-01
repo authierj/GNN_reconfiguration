@@ -42,7 +42,7 @@ class GCN_Global_MLP_reduced_model(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches : :] = topology.view((200, -1))
 
         v = out[:, utils.M : utils.M + utils.N]
@@ -111,7 +111,7 @@ class GCN_local_MLP(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
@@ -143,12 +143,12 @@ class GCN_local_MLP(nn.Module):
         p_flow = ps_flow + pc_flow
 
         v = (
-            utils.D_inv.float()
-            @ utils.Incidence_parent.float()
-            @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + utils.D_inv.float()
-            @ utils.Incidence_child.float()
-            @ (vc_child + vs_child).unsqueeze(2).float()
+            utils.D_inv
+            @ utils.Incidence_parent
+            @ (vc_parent + vs_parent).unsqueeze(2)
+            + utils.D_inv
+            @ utils.Incidence_child
+            @ (vc_child + vs_child).unsqueeze(2)
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
 
@@ -195,7 +195,7 @@ class GNN_global_MLP(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         v = out[:, utils.M : utils.M + utils.N]
@@ -265,7 +265,7 @@ class GNN_local_MLP(nn.Module):
         else:
             topology = p_switch.flatten()
 
-        graph_topo = torch.ones((200, utils.M), device=self.device).float()
+        graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x_nn.shape[0], utils.M)).to(self.device)
@@ -298,12 +298,12 @@ class GNN_local_MLP(nn.Module):
         # first_mul = data.D_inv @ data.Incidence_parent
         # second_mul = first_mul @ Vc_parent.unsqueeze(2).double()
         v = (
-            utils.D_inv.float()
-            @ utils.Incidence_parent.float()
-            @ (vc_parent + vs_parent).unsqueeze(2).float()
-            + utils.D_inv.float()
-            @ utils.Incidence_child.float()
-            @ (vc_child + vs_child).unsqueeze(2).float()
+            utils.D_inv
+            @ utils.Incidence_parent
+            @ (vc_parent + vs_parent).unsqueeze(2)
+            + utils.D_inv
+            @ utils.Incidence_child
+            @ (vc_child + vs_child).unsqueeze(2)
         ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
 
