@@ -7,7 +7,7 @@ from utils_JA import dict_agg
 
 
 def main():
-    exp_names = ["ineq_corr"]
+    exp_names = ["supervised_loss"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -141,8 +141,8 @@ def parse_NN_size(experiment_filepath):
                         #dict_agg(exp_stats, 'TE_ineq_mag_max', stats_dict["test_ineq_max"], op="sum")
                         #dict_agg(exp_stats, 'TE_ineq_mag_mean', stats_dict["test_ineq_mean"], op="sum")
                         
-                        dict_agg(exp_stats, 'T_opt_gap', stats_dict["valid_opt_gap"], op="sum")
-                        dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="sum")
+                        # dict_agg(exp_stats, 'T_opt_gap', stats_dict["valid_opt_gap"], op="sum")
+                        # dict_agg(exp_stats, 'V_opt_gap', stats_dict["valid_opt_gap"], op="sum")
                         #dict_agg(exp_stats, 'TE_opt_gap', stats_dict["test_opt_gap"], op="sum")
                         
                         """
@@ -362,7 +362,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     print("validation numbers")
     print(
         "\n total loss = '{:.2f}' \n dispatch error = '{:.2e}' \n voltage error = '{:.2e}' \n topology error = '{:.4f}' \n ineq viol"
-        "mean = '{:.2e}' \n ineq viol max = '{:.2e}' \n ineq viol 0.01 = '{:.1f}' \n opt. gap = '{:.1f}'\n".format(
+        "mean = '{:.2e}' \n ineq viol max = '{:.2e}' \n ineq viol 0.01 = '{:.1f}' \n ".format(
             exp_stats["V_loss"][-1] / run_counter,
             exp_stats["V_dispatch_mean"][-1] / run_counter,
             exp_stats["V_voltage_mean"][-1] / run_counter,
@@ -370,7 +370,6 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
             exp_stats["V_ineq_mag_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_max"][-1] / run_counter,
             exp_stats["V_ineq_num_viol_2"][-1] / run_counter,
-            exp_stats["V_opt_gap"][-1] / run_counter,
             # exp_stats["V_opt_gap"][-1] / run_counter,
         )
     )

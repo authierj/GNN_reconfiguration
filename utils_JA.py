@@ -317,8 +317,8 @@ class Utils:
             [
                 pg_upp_resid,
                 pg_low_resid,
-                1000*qg_upp_resid,
-                1000*qg_low_resid,
+                qg_upp_resid,
+                qg_low_resid,
                 v_upp_resid,
                 v_low_resid,
                 connectivity,
@@ -523,10 +523,10 @@ class Utils:
         opt_z = y[:, : self.zrdim]
         opt_zc = y[:, self.zrdim :]
 
-        pij, v, _ = self.decompose_vars_z_JA(z_hat)
+        pij, v, topology = self.decompose_vars_z_JA(z_hat)
         qij, pg, qg = self.decompose_vars_zc_JA(zc_hat)
 
-        opt_pij, opt_v, _ = self.decompose_vars_z_JA(opt_z)
+        opt_pij, opt_v, opt_topology = self.decompose_vars_z_JA(opt_z)
         opt_qij, opt_pg, opt_qg = self.decompose_vars_zc_JA(opt_zc)
 
         pij_gap = torch.sum(torch.square(pij - opt_pij), dim=1)
@@ -534,8 +534,9 @@ class Utils:
         v_gap = torch.sum(torch.square(v - opt_v), dim=1)
         pg_gap = torch.sum(torch.square(pg - opt_pg), dim=1)
         qg_gap = torch.sum(torch.square(qg - opt_qg), dim=1)
+        topo_gap = torch.sum(torch.square(topology - opt_topology), dim=1)
 
-        return pij_gap + qij_gap + v_gap + pg_gap + qg_gap
+        return pij_gap + qij_gap + v_gap + pg_gap + qg_gap + topo_gap
 
 
 def xgraph_xflatten(x_graph, batch_size, first_node=False):
