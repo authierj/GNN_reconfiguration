@@ -133,7 +133,7 @@ def parse_NN_size(experiment_filepath):
                         #dict_agg(exp_stats, 'TE_topology_mean', stats_dict["test_topology_error_mean"], op="sum")
                         
                         dict_agg(exp_stats, 'V_ineq_num_viol_0', stats_dict["valid_ineq_num_viol_0"], op="sum")
-                        dict_agg(exp_stats, 'V_ineq_num_viol_2', stats_dict["valid_ineq_num_viol_2"], op="sum")
+                        dict_agg(exp_stats, 'V_ineq_num_viol_1', stats_dict["valid_ineq_num_viol_1"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_max', stats_dict["valid_ineq_max"], op="sum")
                         dict_agg(exp_stats, 'V_ineq_mag_mean', stats_dict["valid_ineq_mean"], op="sum")
                         #dict_agg(exp_stats, 'TE_ineq_num_viol_0', stats_dict["test_ineq_num_viol_0"], op="sum")
@@ -351,7 +351,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
     plt.figure(6)  # V ineq error violation
     plt.plot(exp_stats["V_ineq_num_viol_0"] / run_counter)
     plt.figure(7)  # V ineq error violation
-    plt.plot(exp_stats["V_ineq_num_viol_2"] / run_counter)
+    plt.plot(exp_stats["V_ineq_num_viol_1"] / run_counter)
     plt.figure(8)
     plt.plot(exp_stats["V_ineq_mag_mean"] / run_counter)
     plt.plot(exp_stats["V_ineq_mag_max"] / run_counter)
@@ -369,7 +369,7 @@ def plot_exp_NNsize(exp_stats, run_counter, current_nn, exp_counter):
             exp_stats["V_topology_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_mean"][-1] / run_counter,
             exp_stats["V_ineq_mag_max"][-1] / run_counter,
-            exp_stats["V_ineq_num_viol_2"][-1] / run_counter,
+            exp_stats["V_ineq_num_viol_1"][-1] / run_counter,
             # exp_stats["V_opt_gap"][-1] / run_counter,
         )
     )

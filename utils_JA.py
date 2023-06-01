@@ -594,7 +594,7 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
     soft_weight = args["softWeight"]
 
     total_loss = obj_cost + soft_weight * ineq_cost
-    return supervised_cost
+    return total_loss
 
 
 def dict_agg(stats, key, value, op):

@@ -151,16 +151,18 @@ class GatedSwitchGNN(nn.Module):
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
 
-        # opt_z = data.y[:, : utils.zrdim]
-        # opt_pij, opt_v, opt_topo = utils.decompose_vars_z_JA(opt_z)
-        # opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(data.x, opt_v, opt_pij, opt_topo)
+        opt_z = data.y[:, : utils.zrdim]
+        opt_pij, opt_v, opt_topo = utils.decompose_vars_z_JA(opt_z)
+        opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(data.x, opt_v, opt_pij, opt_topo)
 
-        # opt_zc = data.y[:, utils.zrdim :]
-        # opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
+        opt_zc = data.y[:, utils.zrdim :].double()
+        opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
 
-        # assert torch.allclose(opt_qij, opt_cqij, atol=1e-4), "qij not equal"
-        # assert torch.allclose(opt_qg, opt_cqg, atol=1e-4), "qg not equal"
-        # assert torch.allclose(opt_pg, opt_cpg, atol=1e-4), "pg not equal"
+        opt_czc = torch.cat((opt_cqij, opt_cpg, opt_cqg), dim=1)
+
+        assert torch.allclose(opt_qij, opt_cqij, rtol=0, atol=1e-4), "qij not equal"
+        assert torch.allclose(opt_qg, opt_cqg, rtol=0, atol=1e-4), "qg not equal"
+        assert torch.allclose(opt_pg, opt_cpg, rtol=0, atol=1e-4), "pg not equal"
 
         return z, zc
 
@@ -188,7 +190,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
 
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
-
+        
         switches = s[
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
         ]
