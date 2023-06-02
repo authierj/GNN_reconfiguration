@@ -76,6 +76,7 @@ class GatedSwitchGNN(nn.Module):
             self.switch_activation = nn.Identity()
 
     def forward(self, data, utils, warm_start=False):
+        x_input = data.x
         x, s = self.Encoder(data.x, data.A, data.S)  # B x N x F, B x N x N x F
 
         switches_nodes = torch.nonzero(data.S.triu())
@@ -107,12 +108,13 @@ class GatedSwitchGNN(nn.Module):
         graph_topo = torch.ones((200, utils.M), device=self.device)
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
-        ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1))
+        # ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
+        ps_flow = SMLP_out[:, 1].view((x.shape[0], -1))
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
         vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((x.shape[0], -1))
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
         vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((x.shape[0], -1))
+        qs_flow = SMLP_out[:, 4].view((x.shape[0], -1))
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -125,55 +127,55 @@ class GatedSwitchGNN(nn.Module):
             CMLP_input
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
-        pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((x.shape[0], -1))
+        pc_flow = CMLP_out[:, 0].view((x.shape[0], -1))
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
         vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((x.shape[0], -1))
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
         vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((x.shape[0], -1))
 
-        p_flow = ps_flow + pc_flow
+        # # TODO check if correct
+        # # if want to try max aggregation
+        # v11 = torch.abs(utils.A) @ vc_parent.double().unsqueeze(2)
+        # v12 = torch.abs(utils.A) @ vs_parent.double().unsqueeze(2)
+        # v21 = torch.abs(utils.A) @ vc_child.double().unsqueeze(2)
+        # v22 = torch.abs(utils.A) @ vs_child.double().unsqueeze(2)
 
-        #TODO check if correct
-        # if want to try max aggregation
-        v11 = torch.abs(utils.A) @ vc_parent.double().unsqueeze(2)
-        v12 = torch.abs(utils.A) @ vs_parent.double().unsqueeze(2)
-        v21 = torch.abs(utils.A) @ vc_child.double().unsqueeze(2)
-        v22 = torch.abs(utils.A) @ vs_child.double().unsqueeze(2)
-        
-        tempv = torch.cat((v11, v12, v21, v22), dim=2)
+        # tempv = torch.cat((v11, v12, v21, v22), dim=2)
 
-        v = torch.max(tempv, dim=2)[0].squeeze()
+        # v = torch.max(tempv, dim=2)[0].squeeze()
 
-        # v = (
-        #     utils.D_inv
-        #     @ utils.Incidence_parent
-        #     @ (vc_parent + vs_parent).unsqueeze(2).double()
-        #     + utils.D_inv
-        #     @ utils.Incidence_child
-        #     @ (vc_child + vs_child).unsqueeze(2).double()
-        # ).squeeze()
-        # v[:, 0] = 1  # V_PCC = 1
+        v = (
+            utils.D_inv
+            @ utils.Incidence_parent
+            @ (vc_parent + vs_parent).unsqueeze(2).double()
+            + utils.D_inv
+            @ utils.Incidence_child
+            @ (vc_child + vs_child).unsqueeze(2).double()
+        ).squeeze()
+        v[:, 0] = 1  # V_PCC = 1
 
-        pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x, v, p_flow, graph_topo
-        )
+        pg, qg, q_flow_lines = utils.complete_JA(data.x, v, pc_flow, ps_flow, qs_flow)
 
-        z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
-        zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
+        p_flow = torch.cat((pc_flow, ps_flow), dim=1)
+        q_flow = torch.cat((q_flow_lines, qs_flow), dim=1)
 
-        opt_z = data.y[:, : utils.zrdim]
-        opt_pij, opt_v, opt_topo = utils.decompose_vars_z_JA(opt_z)
-        opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(data.x, opt_v, opt_pij, opt_topo)
+        z = torch.cat((p_flow, v, graph_topo), dim=1)
+        zc = torch.cat((q_flow, pg, qg), dim=1)
 
-        opt_zc = data.y[:, utils.zrdim :].double()
-        opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
+        # opt_z = data.y[:, : utils.zrdim]
+        # opt_pij, opt_v, opt_topo = utils.decompose_vars_z_JA(opt_z)
+        # opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(
+        #     data.x, opt_v, opt_pij, opt_topo
+        # )
 
-        opt_czc = torch.cat((opt_cqij, opt_cpg, opt_cqg), dim=1)
+        # opt_zc = data.y[:, utils.zrdim :].double()
+        # opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
 
-        assert torch.allclose(opt_qij, opt_cqij, rtol=0, atol=1e-4), "qij not equal"
-        assert torch.allclose(opt_qg, opt_cqg, rtol=0, atol=1e-4), "qg not equal"
-        assert torch.allclose(opt_pg, opt_cpg, rtol=0, atol=1e-4), "pg not equal"
+        # opt_czc = torch.cat((opt_cqij, opt_cpg, opt_cqg), dim=1)
+
+        # assert torch.allclose(opt_qij, opt_cqij, rtol=0, atol=1e-4), "qij not equal"
+        # assert torch.allclose(opt_qg, opt_cqg, rtol=0, atol=1e-4), "qg not equal"
+        # assert torch.allclose(opt_pg, opt_cpg, rtol=0, atol=1e-4), "pg not equal"
 
         return z, zc
 
@@ -201,7 +203,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
 
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
-        
+
         switches = s[
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
         ]

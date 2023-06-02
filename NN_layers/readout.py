@@ -62,7 +62,7 @@ class SMLP(torch.nn.Module):
         super(SMLP, self).__init__()
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features, dtype=torch.double)
-        self.lin_output = Linear(hidden_features, 4, dtype=torch.double)
+        self.lin_output = Linear(hidden_features, 5, dtype=torch.double)
         self.dropout = dropout
 
     def forward(self, x):

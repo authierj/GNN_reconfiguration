@@ -30,6 +30,7 @@ class Utils:
         self.Incidence_child = data.mEnd.to_dense().to(device)
         self.zrdim = data.zdim
         self.device = device
+        self.bigM = 0.5
 
     def decompose_vars_z_JA(self, z):
         """
@@ -189,7 +190,7 @@ class Utils:
 
         return result.flatten()
 
-    def complete_JA(self, x, v, p_flow, topo):
+    def complete_JA(self, x, v, p_flow_l, p_flow_s, q_flow_s):
         """
         return the completion variables to satisfy the power flow equations
 
@@ -197,7 +198,6 @@ class Utils:
             x: the input to the neural network
             v: the voltage magnitudes
             p_flow: the active power flows
-            topo: the topology of the graph
 
         return:
             pg: the active power generation
@@ -214,9 +214,9 @@ class Utils:
         # test2 = self.Rall * p_flow.double()
         # result = (test1 - test2)/ self.Xall
 
-        q_flow = (
-            0.5 * (v.unsqueeze(1).double() @ self.A).squeeze() - self.Rall * p_flow.double()
-        ) / self.Xall
+        q_flow_l = (
+            0.5 * (v.unsqueeze(1).double() @ self.A[:, :-self.numSwitches]).squeeze() - self.Rall[:-self.numSwitches] * p_flow_l.double()
+        ) / self.Xall[:-self.numSwitches]
 
         # assert that the equation is satisfied with vi-vj == qij + pij
         # delta_v = incidence.T.float() @ v[0, :]
@@ -224,8 +224,8 @@ class Utils:
         # diff = torch.square(delta_v - loss[0,:])
         # assert torch.max(diff) < 1e-5
 
-        q_flow_corrected = topo * q_flow.double()
-        p_flow_corrected = topo * p_flow
+        p_flow = torch.cat((p_flow_l, p_flow_s), dim=1)
+        q_flow = torch.cat((q_flow_l, q_flow_s), dim=1)
 
         pl = x[:, :, 0]
         ql = x[:, :, 1]
@@ -233,8 +233,8 @@ class Utils:
         # A = self.A.unsqueeze(0).expand(200, -1, -1)
 
         # test = torch.matmul(A.float(), p_flow_corrected.unsqueeze(-1)).squeeze()
-        pg = pl + (self.A @ p_flow_corrected.unsqueeze(-1).double()).squeeze()
-        qg = ql + (self.A @ q_flow_corrected.unsqueeze(-1).double()).squeeze()
+        pg = pl + (self.A @ p_flow.unsqueeze(-1).double()).squeeze()
+        qg = ql + (self.A @ q_flow.unsqueeze(-1).double()).squeeze()
 
         #debug:
         # pl0 = pl[0,:]
@@ -246,8 +246,7 @@ class Utils:
 
         # assert torch.max(torch.abs(pg0 - pg[0,:])) < 1e-4 and torch.max(torch.abs(qg0 - qg[0,:])) < 1e-4
 
-
-        return pg, qg, p_flow_corrected, q_flow_corrected
+        return pg, qg, q_flow_l
 
     def ineq_resid_JA(self, z, zc, pg_upp, qg_upp, incidence):
         """
@@ -261,8 +260,8 @@ class Utils:
         return:
             violated_resids: the value of the violation of the inequality constraints
         """
-        _, v, topology = self.decompose_vars_z_JA(z)
-        _, pg, qg = self.decompose_vars_zc_JA(zc)
+        pflow, v, topology = self.decompose_vars_z_JA(z)
+        qflow, pg, qg = self.decompose_vars_zc_JA(zc)
 
         pg_upp_resid = pg - pg_upp
         pg_low_resid = self.pgLow - pg
@@ -272,6 +271,24 @@ class Utils:
 
         v_upp_resid = v - self.vUpp
         v_low_resid = self.vLow - v
+
+        # power flow in the switches
+        A = self.A[:, -self.numSwitches:]
+        R = self.Rall[-self.numSwitches:]
+        X = self.Xall[-self.numSwitches:]
+        pflow_s = pflow[:, -self.numSwitches:]
+        qflow_s = qflow[:, -self.numSwitches:]
+        topo_s = topology[:, -self.numSwitches:]
+        
+        ohm_law = (v.unsqueeze(1).double() @ A).squeeze() - (2*(R * pflow_s + X * qflow_s) + (1-topo_s) * self.bigM)
+        flow_eq_upp = ohm_law - (1-topo_s) * self.bigM
+        flow_eq_low = -ohm_law - (1-topo_s) * self.bigM
+
+        pflow_upp_resid = pflow_s - topo_s * self.bigM
+        pflow_low_resid = -pflow_s - topo_s * self.bigM
+        
+        qflow_upp_resid = qflow_s - topo_s * self.bigM
+        qflow_low_resid = -qflow_s - topo_s * self.bigM
 
         # TODO discuss with Rabab
         connectivity = (
@@ -286,6 +303,12 @@ class Utils:
                 qg_low_resid,
                 v_upp_resid,
                 v_low_resid,
+                flow_eq_upp,
+                flow_eq_low,
+                pflow_upp_resid,
+                pflow_low_resid,
+                qflow_upp_resid,
+                qflow_low_resid,
                 connectivity,
                 -topology,
             ],
@@ -558,8 +581,8 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
 
     soft_weight = args["softWeight"]
 
-    total_loss = soft_weight * ineq_cost
-    return ineq_cost
+    total_loss = obj_cost + soft_weight * ineq_cost
+    return total_loss
 
 
 def dict_agg(stats, key, value, op):
