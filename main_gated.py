@@ -77,7 +77,7 @@ def main(args):
     else:
         save_dir = os.path.join(
             "results",
-            "testing2",
+            "new_topo",
             model.__class__.__name__,
             "_".join(
                 [

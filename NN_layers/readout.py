@@ -9,8 +9,8 @@ class GlobalMLP(torch.nn.Module):
         # torch.manual_seed(12)
         input_features = args["outputFeatures"] * n_nodes
         hidden_features = input_features
-        self.lin_input = Linear(input_features, hidden_features)
-        self.lin_output = Linear(hidden_features, output_dim)
+        self.lin_input = Linear(input_features, hidden_features, dtype=torch.double)
+        self.lin_output = Linear(hidden_features, output_dim, dtype=torch.double)
         self.dropout = args["dropout"]
 
     def forward(self, x):

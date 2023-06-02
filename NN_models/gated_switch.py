@@ -225,7 +225,6 @@ class GatedSwitchGNN_globalMLP(nn.Module):
             v,
             MLP_out[:, 0 : utils.M],
             graph_topo,
-            utils.A,
         )
 
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)

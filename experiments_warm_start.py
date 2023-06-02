@@ -30,11 +30,19 @@ parser.add_argument(
 parser.add_argument("--saveAllStats", action="store_true")
 parser.add_argument("--saveModel", action="store_true")
 parser.add_argument("--topoLoss", action="store_true")
-
+parser.add_argument(
+        "--hiddenFeatures",
+        type=int,
+        default=4,
+        help="number of features in the hidden layers of the GNN",
+    )
+parser.add_argument(
+        "--numLayers", type=int, default=4, help="the number of layers in the GNN"
+    )
 exp_args = vars(parser.parse_args())
 args = default_args()
 args["lr"] = 5 * 1e-4
-args["epochs"] = 1000
+args["epochs"] = 2000
 
 for key, value in exp_args.items():
     args[key] = value
@@ -46,7 +54,7 @@ filepath = os.path.join(save_dir, "_".join(["basic", "experiments", "topoLoss"])
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-num_runs = 2
+num_runs = 4
 
 if os.path.exists(filepath):
     print("this file already exists and will be completed with new results")
