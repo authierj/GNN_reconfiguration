@@ -558,7 +558,7 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
 
     soft_weight = args["softWeight"]
 
-    total_loss = soft_weight * ineq_cost
+    total_loss = obj_cost + soft_weight * ineq_cost
     return ineq_cost
 
 

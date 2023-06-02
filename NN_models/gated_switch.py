@@ -153,7 +153,7 @@ class GatedSwitchGNN(nn.Module):
         #     @ utils.Incidence_child
         #     @ (vc_child + vs_child).unsqueeze(2).double()
         # ).squeeze()
-        # v[:, 0] = 1  # V_PCC = 1
+        v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
             data.x, v, p_flow, graph_topo
@@ -168,8 +168,6 @@ class GatedSwitchGNN(nn.Module):
 
         opt_zc = data.y[:, utils.zrdim :].double()
         opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
-
-        opt_czc = torch.cat((opt_cqij, opt_cpg, opt_cqg), dim=1)
 
         assert torch.allclose(opt_qij, opt_cqij, rtol=0, atol=1e-4), "qij not equal"
         assert torch.allclose(opt_qg, opt_cqg, rtol=0, atol=1e-4), "qg not equal"
