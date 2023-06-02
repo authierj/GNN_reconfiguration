@@ -134,15 +134,26 @@ class GatedSwitchGNN(nn.Module):
 
         p_flow = ps_flow + pc_flow
 
-        v = (
-            utils.D_inv
-            @ utils.Incidence_parent
-            @ (vc_parent + vs_parent).unsqueeze(2).double()
-            + utils.D_inv
-            @ utils.Incidence_child
-            @ (vc_child + vs_child).unsqueeze(2).double()
-        ).squeeze()
-        v[:, 0] = 1  # V_PCC = 1
+        #TODO check if correct
+        # if want to try max aggregation
+        v11 = torch.abs(utils.A) @ vc_parent.double().unsqueeze(2)
+        v12 = torch.abs(utils.A) @ vs_parent.double().unsqueeze(2)
+        v21 = torch.abs(utils.A) @ vc_child.double().unsqueeze(2)
+        v22 = torch.abs(utils.A) @ vs_child.double().unsqueeze(2)
+        
+        tempv = torch.cat((v11, v12, v21, v22), dim=2)
+
+        v = torch.max(tempv, dim=2)[0].squeeze()
+
+        # v = (
+        #     utils.D_inv
+        #     @ utils.Incidence_parent
+        #     @ (vc_parent + vs_parent).unsqueeze(2).double()
+        #     + utils.D_inv
+        #     @ utils.Incidence_child
+        #     @ (vc_child + vs_child).unsqueeze(2).double()
+        # ).squeeze()
+        # v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
             data.x, v, p_flow, graph_topo

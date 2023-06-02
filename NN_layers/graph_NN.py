@@ -96,11 +96,11 @@ class GatedSwitchesLayer(nn.Module):
         self.track_norm = track_norm
         self.gated = gated
 
-        self.U = nn.Linear(hidden_dim, hidden_dim, bias=True)
-        self.V = nn.Linear(hidden_dim, hidden_dim, bias=True)
-        self.A = nn.Linear(hidden_dim, hidden_dim, bias=True)
-        self.B = nn.Linear(hidden_dim, hidden_dim, bias=True)
-        self.C = nn.Linear(hidden_dim, hidden_dim, bias=True)
+        self.U = nn.Linear(hidden_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.V = nn.Linear(hidden_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.A = nn.Linear(hidden_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.B = nn.Linear(hidden_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.C = nn.Linear(hidden_dim, hidden_dim, bias=True, dtype=torch.double)
 
         # TODO look at the norms, I don't know what it does
         self.norm_h = {
@@ -226,11 +226,11 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
             track_norm,
             gated,
         )
-        self.U = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.V = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.A = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.B = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.C = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.U = nn.Linear(input_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.V = nn.Linear(input_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.A = nn.Linear(input_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.B = nn.Linear(input_dim, hidden_dim, bias=True, dtype=torch.double)
+        self.C = nn.Linear(input_dim, hidden_dim, bias=True, dtype=torch.double)
 
     def forward(self, h, e, A, S):
         """
@@ -266,7 +266,7 @@ class FirstGatedSwitchesLayer(GatedSwitchesLayer):
         # Linear transformations for edge update and gating
         Ah = self.A(h)  # B x V x H
         Bh = self.A(h)  # B x V x H
-        Ce = self.C(e)  # B x V x V x H
+        Ce = self.C(e.double())  # B x V x V x H
 
         # Update switch features and compute switch gates (S acts as a mask)
         e = S.unsqueeze(3) * (Ah.unsqueeze(1) + Bh.unsqueeze(2) + Ce)  # B x V x V x H

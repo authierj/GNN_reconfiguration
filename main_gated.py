@@ -30,8 +30,7 @@ def main(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args["device"] = device
     print("Using device: ", device)
-    dataset_name = args["network"] + "_" + "dataset_test_2"
-    # filepath = "datasets/" + args["network"] + "/processed/" + dataset_name
+    dataset_name = args["network"] + "_" + "new_dataset"
     filepath = os.path.join("datasets", args["network"], "processed", dataset_name)
 
     try:
@@ -53,9 +52,6 @@ def main(args):
     train_loader = DenseDataLoader(train_graphs, batch_size=batch_size, shuffle=True)
     valid_loader = DenseDataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
     test_loader = DenseDataLoader(test_graphs, batch_size=batch_size, shuffle=True)
-
-    # Model initialization and optimizer
-    output_dim = utils.M + utils.N + utils.numSwitches
 
     model = getattr(gated_gnn, args["model"])(args, utils)
 
@@ -182,18 +178,15 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         loader: data loader
         args: dictionary of arguments
         utils: utils object
+        warm_start: whether to warm start the PhyR
     return:
         epoch_stats: dictionary of statistics for the epoch
     """
 
-    model.train()
-
     size = len(loader) * args["batchSize"]
     epoch_stats = {}
-
-    # TODO change data structure to save
-    total_time = 0
-    opt_time = 0
+    
+    model.train()
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
         train_loss = total_loss(
@@ -217,14 +210,10 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         if args["pushProb"]:
             train_loss += args["pushWeight"] * utils.prob_push(z_hat)
 
-
-        # time_start = time.time()
         train_loss.sum().backward()
         optimizer.step()
         optimizer.zero_grad()
-        # time_end = time.time()
-        # opt_time += time_end - time_start
-
+        
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
@@ -250,7 +239,6 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'train_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'train_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
         # fmt: on
-    # print(f"prediction time: {total_time:.4f}, backprog time: {opt_time:.4f}")
     return epoch_stats
 
 
@@ -286,14 +274,6 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
             utils.A,
             data.y
         )
-        if i == 1:
-            _, _, topo = utils.decompose_vars_z_JA(z_hat)
-            dict_agg(
-                epoch_stats,
-                "valid_pswitch",
-                topo[10, -7:].detach().cpu().numpy(),
-                op="vstack",
-            )
 
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())

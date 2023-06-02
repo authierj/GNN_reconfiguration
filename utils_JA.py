@@ -31,41 +31,6 @@ class Utils:
         self.zrdim = data.zdim
         self.device = device
 
-    def decompose_vars_z(self, z):
-        """
-        decompose_vars returns the decomposition of the neural network guess
-
-        :param z: the neural network guess
-                    z = [zji, y\last, pij, pji, qji, qij_sw, v\f, plf, qlf]
-        :return: the decomposition of z
-        """
-
-        zji = z[:, 0 : self.M]
-        y_nol = z[:, self.M + np.arange(0, self.numSwitches - 1)]
-        pij = z[:, self.M + self.numSwitches - 1 + np.arange(0, self.M)]
-        pji = z[:, 2 * self.M + self.numSwitches - 1 + np.arange(0, self.M)]
-        qji = z[:, 3 * self.M + self.numSwitches - 1 + np.arange(0, self.M)]
-        qij_sw = z[
-            :, 4 * self.M + self.numSwitches - 1 + np.arange(0, self.numSwitches)
-        ]
-        v = z[
-            :, 4 * self.M + 2 * self.numSwitches - 1 + np.arange(0, self.N - 1)
-        ]  # feeder not included
-        plf = z[:, 4 * self.M + 2 * self.numSwitches - 1 + self.N - 1]
-        qlf = z[:, 4 * self.M + 2 * self.numSwitches - 1 + self.N]
-
-        return zji, y_nol, pij, pji, qji, qij_sw, v, plf, qlf
-
-    def decompose_vars_zc(self, zc):
-        # zc = [zij, ylast, {qij}nosw, pg, qg]  # completion vars
-        zij = zc[:, np.arange(0, self.M)]
-        ylast = zc[:, self.M]
-        qij_nosw = zc[:, self.M + 1 + np.arange(0, self.M - self.numSwitches)]
-        pg = zc[:, 2 * self.M + 1 - self.numSwitches + np.arange(0, self.N)]
-        qg = zc[:, 2 * self.M + 1 - self.numSwitches + self.N + np.arange(0, self.N)]
-
-        return zij, ylast, qij_nosw, pg, qg
-
     def decompose_vars_z_JA(self, z):
         """
         decompose_vars_z_JA returns the decomposition of the neural network guess of Jules' reduced model
@@ -536,7 +501,7 @@ class Utils:
         qg_gap = torch.sum(torch.square(qg - opt_qg), dim=1)
         topo_gap = torch.sum(torch.square(topology - opt_topology), dim=1)
 
-        return pij_gap + qij_gap + v_gap + pg_gap + qg_gap + topo_gap
+        return pij_gap + v_gap + topo_gap
 
 
 def xgraph_xflatten(x_graph, batch_size, first_node=False):
@@ -593,8 +558,8 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
 
     soft_weight = args["softWeight"]
 
-    total_loss = obj_cost + soft_weight * ineq_cost
-    return total_loss
+    total_loss = soft_weight * ineq_cost
+    return ineq_cost
 
 
 def dict_agg(stats, key, value, op):
