@@ -25,7 +25,7 @@ class GraphDataSet(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return "casedata_33_uniform_extrasw4"
+        return "casedata_33_uniform_extrasw4_new_costfnc"
 
     @property
     def processed_file_names(self):
@@ -117,12 +117,12 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return "new_casedata_33_uniform_extrasw4"
+        return "casedata_33_uniform_extrasw4_new_costfnc"
         # return "casedata_33_uniform_extrasw"
 
     @property
     def processed_file_names(self):
-        return "test_new_topo.pt"
+        return "test_newcostfnc.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -171,6 +171,11 @@ class GraphDataSetWithSwitches(InMemoryDataset):
         ql = cases["QL"].T
         x = torch.dstack((from_np(pl), from_np(ql)))
 
+        mean_x = torch.mean(x, dim=0)
+        std_x = torch.std(x, dim=0)
+        std_x[0,:] = 1
+        norm_x = (x - mean_x) / std_x
+        
         pg_upp = from_np(cases["PGUpp"].T)
         qg_upp = from_np(cases["QGUpp"].T)
 
@@ -211,7 +216,8 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
         for i in range(y.shape[0]):
             graph = MyGraph(
-                x=x[i, :, :],
+                x=norm_x[i, :, :],
+                x_data=x[i, :, :],
                 A=A.to_dense().bool(),
                 S=S.to_dense().bool(),
                 pg_upp=pg_upp[i, :],

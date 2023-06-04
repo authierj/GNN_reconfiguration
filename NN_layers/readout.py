@@ -1,6 +1,30 @@
 import torch
 import torch.nn.functional as F
 from torch.nn import Linear
+import torch.nn as nn
+
+
+
+class MLP(nn.Module):
+    def __init__(self, args, input_dim, hidden_dim, output_dim):
+            super(MLP, self).__init__()
+            self.lin_input = Linear(input_dim, hidden_dim, dtype=torch.double)
+            self.hidden = Linear(hidden_dim, hidden_dim, dtype=torch.double)
+            self.lin_output = Linear(hidden_dim, output_dim, dtype=torch.double)
+            self.dropout = args["dropout"]
+            self.batchnorm = nn.BatchNorm1d(hidden_dim, dtype=torch.double)
+
+    def forward(self, x):
+        x = self.lin_input(x)
+        x = x.relu()
+        x = self.batchnorm(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.hidden(x)
+        x = x.relu()
+        x = self.batchnorm(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.lin_output(x)
+        return x
 
 
 class GlobalMLP(torch.nn.Module):
@@ -62,15 +86,17 @@ class SMLP(torch.nn.Module):
         super(SMLP, self).__init__()
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features, dtype=torch.double)
+        self.batchnorm = nn.BatchNorm1d(hidden_features, dtype=torch.double)
         self.lin_output = Linear(hidden_features, 4, dtype=torch.double)
         self.dropout = dropout
 
     def forward(self, x):
         x = self.lin_input(x)
         x = x.relu()
+        x = self.batchnorm(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
-        # x = x.sigmoid()
+        x = x.sigmoid()
         return x
 
 
@@ -79,12 +105,15 @@ class CMLP(torch.nn.Module):
         super(CMLP, self).__init__()
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features, dtype=torch.double)
+        self.batchnorm = nn.BatchNorm1d(hidden_features, dtype=torch.double)
         self.lin_output = Linear(hidden_features, 3, dtype=torch.double)
         self.dropout = dropout
 
     def forward(self, x):
         x = self.lin_input(x)
         x = x.relu()
+        x = self.batchnorm(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
+        x = x.sigmoid()
         return x

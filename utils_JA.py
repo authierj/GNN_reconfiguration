@@ -280,10 +280,10 @@ class Utils:
 
         resids = torch.cat(
             [
-                pg_upp_resid,
-                pg_low_resid,
-                qg_upp_resid,
-                qg_low_resid,
+                100*pg_upp_resid,
+                100*pg_low_resid,
+                100*qg_upp_resid,
+                100*qg_low_resid,
                 v_upp_resid,
                 v_low_resid,
                 connectivity,
@@ -559,8 +559,8 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
     soft_weight = args["softWeight"]
 
     total_loss = obj_cost + soft_weight * ineq_cost
-    return ineq_cost
-
+    mean_loss = torch.mean(total_loss)
+    return total_loss
 
 def dict_agg(stats, key, value, op):
     """

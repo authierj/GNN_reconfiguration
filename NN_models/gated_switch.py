@@ -97,7 +97,8 @@ class GatedSwitchGNN(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
-        p_switch = self.switch_activation(SMLP_out[:, 0])
+        # p_switch = self.switch_activation(SMLP_out[:, 0])
+        p_switch = SMLP_out[:, 0]
 
         if warm_start:
             topology = self.PhyR(p_switch.flatten(), n_switches)
@@ -108,11 +109,11 @@ class GatedSwitchGNN(nn.Module):
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1))
+        ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1)) - 0.5
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((x.shape[0], -1))
+        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((x.shape[0], -1)) + 0.5
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((x.shape[0], -1))
+        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((x.shape[0], -1)) + 0.5
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -126,24 +127,42 @@ class GatedSwitchGNN(nn.Module):
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((x.shape[0], -1))
+        pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((x.shape[0], -1)) - 0.5
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((x.shape[0], -1))
+        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((x.shape[0], -1)) + 0.5
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((x.shape[0], -1))
+        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((x.shape[0], -1)) + 0.5
 
         p_flow = ps_flow + pc_flow
 
-        #TODO check if correct
+        # TODO check if correct
         # if want to try max aggregation
-        v11 = torch.abs(utils.A) @ vc_parent.double().unsqueeze(2)
-        v12 = torch.abs(utils.A) @ vs_parent.double().unsqueeze(2)
-        v21 = torch.abs(utils.A) @ vc_child.double().unsqueeze(2)
-        v22 = torch.abs(utils.A) @ vs_child.double().unsqueeze(2)
-        
-        tempv = torch.cat((v11, v12, v21, v22), dim=2)
+
+        assert torch.allclose(utils.Incidence_parent - utils.Incidence_child, utils.A)
+
+        v11 = utils.Incidence_parent @ vc_parent.double().unsqueeze(2)
+        v12 = utils.Incidence_parent @ vs_parent.double().unsqueeze(2)
+        v21 = utils.Incidence_child @ vc_child.double().unsqueeze(2)
+        v22 = utils.Incidence_child @ vs_child.double().unsqueeze(2)
+
+        # v11_0 = utils.Incidence_parent @ vc_parent[0, :].double()
+        # v12_0 = utils.Incidence_parent @ vs_parent[0, :].double()
+        # v21_0 = utils.Incidence_parent @ vc_child[0, :].double()
+        # v22_0 = utils.Incidence_parent @ vs_child[0, :].double()
+
+        tempv = torch.cat((v21, v22), dim=2)
+        # tempv0 = torch.cat(
+        #     (
+        #         v11_0.unsqueeze(1),
+        #         v12_0.unsqueeze(1),
+        #         v21_0.unsqueeze(1),
+        #         v22_0.unsqueeze(1),
+        #     ),
+        #     dim=1,
+        # )
 
         v = torch.max(tempv, dim=2)[0].squeeze()
+        # v0 = torch.max(tempv0, dim=1)[0].squeeze()
 
         # v = (
         #     utils.D_inv
@@ -156,7 +175,7 @@ class GatedSwitchGNN(nn.Module):
         v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x, v, p_flow, graph_topo
+            data.x_data, v, p_flow, graph_topo
         )
 
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
@@ -164,7 +183,9 @@ class GatedSwitchGNN(nn.Module):
 
         opt_z = data.y[:, : utils.zrdim]
         opt_pij, opt_v, opt_topo = utils.decompose_vars_z_JA(opt_z)
-        opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(data.x, opt_v, opt_pij, opt_topo)
+        opt_cpg, opt_cqg, _, opt_cqij = utils.complete_JA(
+            data.x_data, opt_v, opt_pij, opt_topo
+        )
 
         opt_zc = data.y[:, utils.zrdim :].double()
         opt_qij, opt_pg, opt_qg = utils.decompose_vars_zc_JA(opt_zc)
@@ -199,7 +220,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
 
         # decode
         switches_nodes = torch.nonzero(data.S.triu())
-        
+
         switches = s[
             switches_nodes[:, 0], switches_nodes[:, 1], switches_nodes[:, 2], :
         ]
@@ -227,6 +248,32 @@ class GatedSwitchGNN_globalMLP(nn.Module):
             graph_topo,
         )
 
+        z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
+        zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
+        return z, zc
+
+
+class simple_MLP(nn.Module):
+    def __init__(self, args, utils):
+        super().__init__()
+        output_dim = utils.M + utils.N + utils.numSwitches
+        self.MLP = MLP(args, 2*utils.N, 4*utils.N, output_dim)
+        self.device = args["device"]
+        self.PhyR = getattr(utils, args["PhyR"])
+    def forward(self, data, utils, warm_start=False):      
+        n_switches = torch.sum(torch.sum(data.S, dim=1), dim=1) // 2
+
+        x_flatten = data.x.view(200, -1)
+        z = self.MLP(x_flatten)
+        p_flow, v, topo = utils.decompose_vars_z_JA(z)
+        if warm_start:
+            topology = self.PhyR(topo.flatten().sigmoid(), n_switches)
+        graph_topo = torch.ones((200, utils.M), device=self.device)
+        graph_topo[:, -utils.numSwitches :] = topology.view(200, -1)
+        v[:, 0] = 1
+        pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
+            data.x_data, v, p_flow, graph_topo
+        )
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
         zc = torch.cat((q_flow_corrected, pg, qg), dim=1)
         return z, zc
