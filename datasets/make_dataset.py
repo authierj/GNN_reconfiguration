@@ -11,7 +11,7 @@ network_ID = "baranwu33"  # "node4"
 # dataflag='partial'
 dataflag = "full"
 
-filename = 'new_casedata_33_uniform_extrasw4.mat'
+filename = 'casedata_33_uniform_extrasw4_new_costfnc.mat'
 # filename = "casedata_graph.mat"
 
 torch.set_default_dtype(torch.float64)
@@ -28,7 +28,7 @@ problem._num = problem.x.shape[0]
 #     problem._y = torch.hstack((problem._z, problem._zc))
 
 
-with open(network_ID + "_new_dataset", "wb") as f:
+with open(network_ID + "_new_costfnc", "wb") as f:
     pickle.dump(problem, f)
 
 # os.path.join('C:\','UserData','z004c27r','PycharmProjects','reconfiguration','datasets','acopf','matlab_datasets','FeasiblePairs_Case57.mat')

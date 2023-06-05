@@ -31,7 +31,7 @@ def main(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args["device"] = device
     print("Using device: ", device)
-    dataset_name = args["network"] + "_" + "dataset_test_2"
+    dataset_name = args["network"] + "_" + "new_costfnc"
     filepath = os.path.join("datasets", args["network"], "processed", dataset_name)
 
     try:
@@ -55,7 +55,8 @@ def main(args):
     test_loader = DataLoader(test_graphs, batch_size=batch_size, shuffle=True)
 
     # Model initialization and optimizer
-    model = getattr(classical_gnn, args["model"])(args, utils)
+    # model = getattr(classical_gnn, args["model"])(args, utils)
+    model = classical_gnn.GAT_GNN(args, utils)
     model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"], weight_decay=5e-4)
@@ -108,6 +109,8 @@ def main(args):
     for i in range(num_epochs):
         if i == 0 and args["warmStart"]:
             warm_start = True
+        if i == 999:
+            print("HI")
 
         start_train = time.time()
         train_epoch_stats = train(
@@ -208,15 +211,16 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         z_hat, zc_hat = model(data, utils, warm_start)
         batch = data.batch
         ptr = data.ptr
-        train_loss, soft_weight = total_loss(
+        train_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
+            data.pg_upp,
+            data.qg_upp,
             utils.A,
-            train=True,
+            data.y,
         )
         if args["topoLoss"]:
             train_loss += args["topoWeight"] * utils.squared_error_topology(
@@ -232,14 +236,13 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         optimizer.step()
         optimizer.zero_grad()
 
-        dispatch_dist = utils.opt_dispatch_dist_JA(
-            z_hat.detach(), zc_hat.detach(), data.y.detach()
-        )
+        dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
+        voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, utils.A
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
-        topo_factor = utils.M/utils.numSwitches
+        topo_factor = utils.M / utils.numSwitches
 
         eps_converge = args["corrEps"]
         # fmt: off
@@ -283,15 +286,16 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
     i = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
-        valid_loss, soft_weight = total_loss(
+        valid_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
+            data.pg_upp,
+            data.qg_upp,
             utils.A,
-            train=True,
+            data.y,
         )
 
         if i == 1:
@@ -303,17 +307,15 @@ def test_or_validate(model, criterion, loader, args, utils, warm_start=False):
                 op="vstack",
             )
 
-        dispatch_dist = utils.opt_dispatch_dist_JA(
-            z_hat.detach(), zc_hat.detach(), data.y.detach()
-        )
+        dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
+        voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, utils.A
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
-        topo_factor = utils.M/utils.numSwitches
-        opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
-
+        topo_factor = utils.M / utils.numSwitches
         eps_converge = args["corrEps"]
+        
         dict_agg(
             epoch_stats,
             "valid_loss",
@@ -345,7 +347,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        default="GNN_local_MLP",
+        default="GCN_local_MLP",
         choices=[
             "GCN_Global_MLP_reduced_model",
             "GCN_local_MLP",

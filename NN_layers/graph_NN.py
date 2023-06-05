@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.nn import GCNConv, GraphConv
+from torch_geometric.nn import GCNConv, GraphConv, norm
 import torch.nn.functional as F
 from torch import nn
 
@@ -16,12 +16,12 @@ class GCN(nn.Module):
         assert self.layers >= 2, "the minimum number of layers for the GCN is 2"
 
     def forward(self, x, edge_index):
-        x = self.first_conv(x, edge_index)
+        x = self.first_conv(x.float(), edge_index)
         x = x.relu()
         # x = F.dropout(x, p=self.dropout, training=self.training)
 
         for i in range(self.layers - 1):
-            x = self.conv(x, edge_index)
+            x = self.conv(x.float(), edge_index)
             x = x.relu()
             # x = F.dropout(x, p=self.dropout, training=self.training)
 
@@ -40,17 +40,19 @@ class GNN(nn.Module):
         )
         self.dropout = args["dropout"]
         self.layers = args["numLayers"]
-
+        self.batchnorm = norm.BatchNorm(args["hiddenFeatures"])
         assert self.layers >= 2, "the minimum number of layers for the GNN is 2"
 
     def forward(self, x, edge_index):
-        x = self.first_conv(x, edge_index)
+        x = self.first_conv(x.float(), edge_index)
         x = x.relu()
+        # x = self.batchnorm(x)
         # x = F.dropout(x, p=self.dropout, training=self.training)
 
         for i in range(self.layers - 1):
-            x = self.conv(x, edge_index)
+            x = self.conv(x.float(), edge_index)
             x = x.relu()
+            # x = self.batchnorm(x)
             # x = F.dropout(x, p=self.dropout, training=self.training)
 
         return x

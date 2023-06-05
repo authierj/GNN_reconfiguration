@@ -280,10 +280,10 @@ class Utils:
 
         resids = torch.cat(
             [
-                100*pg_upp_resid,
-                100*pg_low_resid,
-                100*qg_upp_resid,
-                100*qg_low_resid,
+                pg_upp_resid,
+                pg_low_resid,
+                qg_upp_resid,
+                qg_low_resid,
                 v_upp_resid,
                 v_low_resid,
                 connectivity,

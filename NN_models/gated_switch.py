@@ -257,7 +257,7 @@ class simple_MLP(nn.Module):
     def __init__(self, args, utils):
         super().__init__()
         output_dim = utils.M + utils.N + utils.numSwitches
-        self.MLP = MLP(args, 2*utils.N, 4*utils.N, output_dim)
+        self.MLP = MLP(args, 2*utils.N, 10, output_dim)
         self.device = args["device"]
         self.PhyR = getattr(utils, args["PhyR"])
     def forward(self, data, utils, warm_start=False):      
@@ -267,9 +267,9 @@ class simple_MLP(nn.Module):
         z = self.MLP(x_flatten)
         p_flow, v, topo = utils.decompose_vars_z_JA(z)
         if warm_start:
-            topology = self.PhyR(topo.flatten().sigmoid(), n_switches)
+            topo = self.PhyR(topo.flatten().sigmoid(), n_switches)
         graph_topo = torch.ones((200, utils.M), device=self.device)
-        graph_topo[:, -utils.numSwitches :] = topology.view(200, -1)
+        graph_topo[:, -utils.numSwitches :] = topo.view(200, -1)
         v[:, 0] = 1
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
             data.x_data, v, p_flow, graph_topo

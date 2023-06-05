@@ -7,7 +7,7 @@ from utils_JA import dict_agg
 
 
 def main():
-    exp_names = ["new_topo"]
+    exp_names = ["test_dim"]
     save_dir = "results/experiments"
     filepaths = [os.path.join(save_dir, e_name + ".txt") for e_name in exp_names]
     f_exist = [f for f in filepaths if os.path.isfile(f)]
@@ -65,7 +65,7 @@ def parse_NN_size(experiment_filepath):
                         else exp_filepath_small
                     )
                     with open(exp_filepath_get, "rb") as exp_handle:
-                        exp_nn = line[line.find("GatedSwitchGNN") + 8 : line.find("/v")]
+                        exp_nn = line[line.find("GatedSwitchGNN") + 15 : line.find("/v")]
                         # exp_nn = line[line.find("lr: ") : line.find(", run")]
                         # exp_nn = line[line.find("dir: ") + 13 : -3]
                         exp_run = line[line.find("run: ") + 5 : line.find(", dir")]

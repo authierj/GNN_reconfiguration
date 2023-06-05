@@ -12,7 +12,7 @@ class MyGraph(Graph):
     "define Graphs with batches in a new dimension as in PyTorch"
 
     def __cat_dim__(self, key, value, *args, **kwargs):
-        if key == "y":
+        if key in ["y", "qg_upp", "pg_upp", "x_data"]:
             return None
         else:
             return super().__cat_dim__(key, value, *args, **kwargs)
@@ -26,10 +26,11 @@ class GraphDataSet(InMemoryDataset):
     @property
     def raw_file_names(self):
         return "casedata_33_uniform_extrasw4_new_costfnc"
+        # return "casedata_33_uniform_extrasw"
 
     @property
     def processed_file_names(self):
-        return "new_graph.pt"
+        return "test_newcostfnc_nosw.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -71,11 +72,21 @@ class GraphDataSet(InMemoryDataset):
         data = spio.loadmat(path)
 
         cases = data["case_data_all"][0][0]
+        network = data["network_data"][0, 0]
+        solutions = data["res_data_all"][0][0]
+
         pl = cases["PL"].T
         ql = cases["QL"].T
         x = torch.dstack((from_np(pl), from_np(ql)))
 
-        network = data["network_data"][0, 0]
+        mean_x = torch.mean(x, dim=0)
+        std_x = torch.std(x, dim=0)
+        std_x[0,:] = 1
+        norm_x = (x - mean_x) / std_x
+        
+        pg_upp = from_np(cases["PGUpp"].T)
+        qg_upp = from_np(cases["QGUpp"].T)
+
         n = np.squeeze(network[5]).item(0)
         m = np.squeeze(network[6]).item(0)
 
@@ -90,24 +101,29 @@ class GraphDataSet(InMemoryDataset):
         reversed_edges = np.flip(edges, axis=0)
         bi_edges = from_np(np.hstack((edges, reversed_edges))).long()
 
-        solutions = data["res_data_all"][0][0]
         z = solutions[0]
         zc = solutions[1]
 
         z_JA, zc_JA = self.extract_JA_sol(z.T, zc.T, n, m, numSwitches, sw_idx, interim)
 
-        y = torch.hstack((from_np(z_JA), from_np(zc_JA))).float()
+        y = torch.hstack((from_np(z_JA), from_np(zc_JA)))
 
         data_list = []
 
         for i in range(y.shape[0]):
-            # features = torch.cat((torch.zeros(1, x.shape[2]), x[i, :, :]), 0)
-            graph = MyGraph(x=x[i, :, :], edge_index=bi_edges, idx=i, y=y[i, :])
+            graph = MyGraph(
+                x=norm_x[i, :, :],
+                edge_index=bi_edges,
+                x_data=x[i, :, :],
+                pg_upp=pg_upp[i, :],
+                qg_upp=qg_upp[i, :],
+                idx=i,
+                y=y[i, :],
+            )
             data_list.append(graph)
-
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
-        # could also maybe save the slices sperately, could be useful for graphs of multiple sizes
+
 
 
 class GraphDataSetWithSwitches(InMemoryDataset):
