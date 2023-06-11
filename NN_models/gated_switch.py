@@ -156,7 +156,7 @@ class GatedSwitchGNN(nn.Module):
         v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x, v, p_flow, graph_topo, utils.A
+            data.x_data, v, p_flow, graph_topo, utils.A
         )
 
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)

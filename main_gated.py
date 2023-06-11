@@ -49,17 +49,17 @@ def main(args):
     num_graph_per_dataset = 8760
     train_idx = torch.hstack(
         (
-            torch.arange(0, 3200),
-            torch.arange(num_graph_per_dataset, num_graph_per_dataset + 3200),
+            torch.arange(0, 7800),
+            torch.arange(num_graph_per_dataset, num_graph_per_dataset + 7800),
         )
     )
     valid_idx = torch.hstack(
         (
-            torch.arange(3200, 3600),
-            torch.arange(num_graph_per_dataset + 3200, num_graph_per_dataset + 3600),
+            torch.arange(7800, 8200),
+            torch.arange(num_graph_per_dataset + 7800, num_graph_per_dataset + 8200),
         )
     )
-    test_idx = torch.arange(2 * num_graph_per_dataset, 2 * num_graph_per_dataset + 800)
+    test_idx = torch.arange(2 * num_graph_per_dataset, 2 * num_graph_per_dataset + 400)
     train_graphs = graph_dataset[train_idx]
     valid_graphs = graph_dataset[valid_idx]
     test_graphs = graph_dataset[test_idx]
@@ -216,15 +216,16 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
 
-        train_loss, soft_weight = total_loss(
+        train_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
-            utils.A,
-            train=True,
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
+            data.y
         )
         if args["topoLoss"]:
             train_loss += args["topoWeight"] * utils.squared_error_topology(
@@ -244,7 +245,7 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, data.incidence,
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
@@ -292,15 +293,16 @@ def validate(model, criterion, loader, args, utils, warm_start=False):
     i = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
-        valid_loss, soft_weight = total_loss(
+        valid_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
-            utils.A,
-            train=True,
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
+            data.y
         )
 
         if i == 1:
@@ -315,7 +317,7 @@ def validate(model, criterion, loader, args, utils, warm_start=False):
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, data.incidence,
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
@@ -369,20 +371,21 @@ def test(model, criterion, loader, args, utils, warm_start=False):
     i = 0
     for data in loader:
         z_hat, zc_hat = model(data, utils, warm_start)
-        test_loss, soft_weight = total_loss(
+        test_loss = total_loss(
             z_hat,
             zc_hat,
             criterion,
             utils,
             args,
-            data.idx,
-            utils.A,
-            train=True,
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
+            data.y
         )
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.idx, utils.A
+            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, data.incidence,
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches

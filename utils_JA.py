@@ -15,9 +15,9 @@ class Utils:
         self.Rall = data.Rall.to(device)
         self.Xall = data.Xall.to(device)
         self.pgUpp = data.pgUpp.to(device)
-        self.pgLow = data.pgLow.to(device)
+        self.pgLow = 0
         self.qgUpp = data.qgUpp.to(device)
-        self.qgLow = data.qgLow.to(device)
+        self.qgLow = 0
         self.bigM = data.bigM
         self.Xall = data.Xall.to(device)
         self.Rall = data.Rall.to(device)
@@ -251,12 +251,13 @@ class Utils:
         pl = x[:, :, 0]
         ql = x[:, :, 1]
 
-        pg = pl - (incidence.float() @ p_flow_corrected.unsqueeze(2)).squeeze()
-        qg = ql - (incidence.float() @ q_flow_corrected.unsqueeze(2)).squeeze()
+        pg = pl + (incidence.float() @ p_flow_corrected.unsqueeze(2)).squeeze()
+        qg = ql + (incidence.float() @ q_flow_corrected.unsqueeze(2)).squeeze()
 
         return pg, qg, p_flow_corrected, q_flow_corrected
 
-    def ineq_resid_JA(self, z, zc, idx, incidence):
+    
+    def ineq_resid_JA(self, z, zc, pg_upp, qg_upp, incidence):
         """
         ineq_resid returns the violation of the inequality constraints
 
@@ -268,23 +269,21 @@ class Utils:
         return:
             violated_resids: the value of the violation of the inequality constraints
         """
-        idx = torch.squeeze(idx)
+        _, v, topology = self.decompose_vars_z_JA(z)
+        _, pg, qg = self.decompose_vars_zc_JA(zc)
 
-        pij, v, topology = self.decompose_vars_z_JA(z)
-        qij, pg, qg = self.decompose_vars_zc_JA(zc)
+        pg_upp_resid = pg - pg_upp
+        pg_low_resid = self.pgLow - pg
 
-        pg_upp_resid = pg[:, 1:] - self.pgUpp[idx, 1:]
-        pg_low_resid = self.pgLow[idx, 1::] - pg[:, 1::]
-
-        qg_upp_resid = qg[:, 1::] - self.qgUpp[idx, 1::]
-        qg_low_resid = self.qgLow[idx, 1::] - qg[:, 1::]
+        qg_upp_resid = qg - qg_upp
+        qg_low_resid = self.qgLow - qg
 
         v_upp_resid = v - self.vUpp
         v_low_resid = self.vLow - v
 
         # TODO discuss with Rabab
         connectivity = (
-            1 - (torch.abs(incidence.float()) @ topology.unsqueeze(2)).squeeze()
+            1 - (torch.abs(incidence.double()) @ topology.unsqueeze(2).double()).squeeze()
         )
 
         resids = torch.cat(
@@ -293,10 +292,6 @@ class Utils:
                 pg_low_resid,
                 qg_upp_resid,
                 qg_low_resid,
-                pg[:, 0].reshape(-1, 1),
-                -pg[:, 0].reshape(-1, 1),
-                qg[:, 0].reshape(-1, 1),
-                -qg[:, 0].reshape(-1, 1),
                 v_upp_resid,
                 v_low_resid,
                 connectivity,
@@ -307,7 +302,7 @@ class Utils:
 
         violated_resid = torch.clamp(resids, min=0)
         # print(violated_resid[:,0])
-
+        idx = torch.argmax(violated_resid, dim=1)
         return violated_resid
 
     def cross_entropy_loss_topology(self, z, y, switch_mask):
@@ -493,7 +488,7 @@ def xgraph_xflatten(x_graph, batch_size, first_node=False):
     return xNN
 
 
-def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
+def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
     """
     total loss returns the sum of the loss function and norm of the violation of
     the inequality constraints multiplied by the soft weight
@@ -513,8 +508,9 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
     """
 
     obj_cost = criterion(z, zc)
+    # supervised_cost = utils.optimality_distance(z, zc, y)
     ineq_dist = utils.ineq_resid_JA(
-        z, zc, idx, incidence
+        z, zc, pg_upp, qg_upp, incidence
     )  # gives update for vector weight
     # print(ineq_dist[0, :])
     ineq_cost = torch.linalg.vector_norm(
@@ -524,7 +520,8 @@ def total_loss(z, zc, criterion, utils, args, idx, incidence, train):
     soft_weight = args["softWeight"]
 
     total_loss = obj_cost + soft_weight * ineq_cost
-    return total_loss, soft_weight
+    mean_loss = torch.mean(total_loss)
+    return total_loss
 
 
 def dict_agg(stats, key, value, op):

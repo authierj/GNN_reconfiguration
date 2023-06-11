@@ -145,12 +145,12 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ["casedata_33_uniform_extrasw4", "casedata_33_uniform_random_8sw_v2", "casedata_33_uniform_random_8sw_v7"]
+        return ["casedata_33_uniform_extrasw4_endswitch", "casedata_33_uniform_random_8sw_v2", "casedata_33_uniform_random_8sw_v7"]
         # return "casedata_33_uniform_extrasw"
 
     @property
     def processed_file_names(self):
-        return "graph_switches_extrasw4_random_8sw_v2_v7.pt"
+        return "graph_switches_extrasw4_endsw_random_8sw_v2_v7.pt"
     
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -201,6 +201,14 @@ class GraphDataSetWithSwitches(InMemoryDataset):
             pl = cases["PL"].T
             ql = cases["QL"].T
             x = torch.dstack((from_np(pl), from_np(ql))).float()
+
+            mean_x = torch.mean(x, dim=0)
+            std_x = torch.std(x, dim=0)
+            std_x[0,:] = 1
+            norm_x = (x - mean_x) / std_x
+
+            pg_upp = from_np(cases["PGUpp"].T)
+            qg_upp = from_np(cases["QGUpp"].T)
 
             n = np.squeeze(network[5]).item(0)
             m = np.squeeze(network[6]).item(0)
@@ -253,7 +261,8 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
             for i in range(y.shape[0]):
                 graph = MyGraph(
-                    x=x[i, :, :],
+                    x=norm_x[i, :, :],
+                    x_data=x[i, :, :],
                     A=A.to_dense().bool(),
                     S=S.to_dense().bool(),
                     idx=i,
@@ -263,6 +272,8 @@ class GraphDataSetWithSwitches(InMemoryDataset):
                     inc_parents=inc_parents.to_dense().bool(),
                     inc_childs=inc_childs.to_dense().bool(),
                     inv_degree=inv_degree,
+                    pg_upp = pg_upp[i, :],
+                    qg_upp = qg_upp[i, :],
                 )
                 data_list.append(graph)
         data, slices = self.collate(data_list)
