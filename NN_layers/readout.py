@@ -63,10 +63,12 @@ class SMLP(torch.nn.Module):
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
         self.lin_output = Linear(hidden_features, 4)
+        self.batchnorm = torch.nn.BatchNorm1d(hidden_features)
         self.dropout = dropout
 
     def forward(self, x):
         x = self.lin_input(x)
+        x = self.batchnorm(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
@@ -82,10 +84,12 @@ class CMLP(torch.nn.Module):
         # torch.manual_seed(12)
         self.lin_input = Linear(input_features, hidden_features)
         self.lin_output = Linear(hidden_features, 3)
+        self.batchnorm = torch.nn.BatchNorm1d(hidden_features)
         self.dropout = dropout
 
     def forward(self, x):
         x = self.lin_input(x)
+        x = self.batchnorm(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
