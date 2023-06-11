@@ -138,19 +138,19 @@ class GatedSwitchGNN(nn.Module):
         # TODO check if correct
         # if want to try max aggregation
 
-        assert torch.allclose(utils.Incidence_parent - utils.Incidence_child, utils.A)
+        # assert torch.allclose(utils.Incidence_parent - utils.Incidence_child, utils.A)
 
-        v11 = utils.Incidence_parent @ vc_parent.double().unsqueeze(2)
-        v12 = utils.Incidence_parent @ vs_parent.double().unsqueeze(2)
-        v21 = utils.Incidence_child @ vc_child.double().unsqueeze(2)
-        v22 = utils.Incidence_child @ vs_child.double().unsqueeze(2)
+        # v11 = utils.Incidence_parent @ vc_parent.double().unsqueeze(2)
+        # v12 = utils.Incidence_parent @ vs_parent.double().unsqueeze(2)
+        # v21 = utils.Incidence_child @ vc_child.double().unsqueeze(2)
+        # v22 = utils.Incidence_child @ vs_child.double().unsqueeze(2)
 
         # v11_0 = utils.Incidence_parent @ vc_parent[0, :].double()
         # v12_0 = utils.Incidence_parent @ vs_parent[0, :].double()
         # v21_0 = utils.Incidence_parent @ vc_child[0, :].double()
         # v22_0 = utils.Incidence_parent @ vs_child[0, :].double()
 
-        tempv = torch.cat((v21, v22), dim=2)
+        # tempv = torch.cat((v21, v22), dim=2)
         # tempv0 = torch.cat(
         #     (
         #         v11_0.unsqueeze(1),
@@ -161,17 +161,17 @@ class GatedSwitchGNN(nn.Module):
         #     dim=1,
         # )
 
-        v = torch.max(tempv, dim=2)[0].squeeze()
+        # v = torch.max(tempv, dim=2)[0].squeeze()
         # v0 = torch.max(tempv0, dim=1)[0].squeeze()
 
-        # v = (
-        #     utils.D_inv
-        #     @ utils.Incidence_parent
-        #     @ (vc_parent + vs_parent).unsqueeze(2).double()
-        #     + utils.D_inv
-        #     @ utils.Incidence_child
-        #     @ (vc_child + vs_child).unsqueeze(2).double()
-        # ).squeeze()
+        v = (
+            utils.D_inv
+            @ utils.Incidence_parent
+            @ (vc_parent + vs_parent).unsqueeze(2).double()
+            + utils.D_inv
+            @ utils.Incidence_child
+            @ (vc_child + vs_child).unsqueeze(2).double()
+        ).squeeze()
         v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(

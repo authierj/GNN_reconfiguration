@@ -30,7 +30,7 @@ def main(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args["device"] = device
     print("Using device: ", device)
-    dataset_name = args["network"] + "_" + "new_dataset"
+    dataset_name = args["network"] + "_" + "extrasw4_endswitch"
     filepath = os.path.join("datasets", args["network"], "processed", dataset_name)
 
     try:

@@ -117,12 +117,12 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return "casedata_33_uniform_extrasw4_new_costfnc"
+        return "casedata_33_uniform_extrasw4_endswitch"
         # return "casedata_33_uniform_extrasw"
 
     @property
     def processed_file_names(self):
-        return "test_newcostfnc.pt"
+        return "endswitch.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
