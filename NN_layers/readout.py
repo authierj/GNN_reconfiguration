@@ -92,8 +92,8 @@ class SMLP(torch.nn.Module):
 
     def forward(self, x):
         x = self.lin_input(x)
-        x = x.relu()
         x = self.batchnorm(x)
+        x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
         x = x.sigmoid()
@@ -111,8 +111,8 @@ class CMLP(torch.nn.Module):
 
     def forward(self, x):
         x = self.lin_input(x)
-        x = x.relu()
         x = self.batchnorm(x)
+        x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
         x = x.sigmoid()
