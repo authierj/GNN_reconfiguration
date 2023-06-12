@@ -102,7 +102,7 @@ class GatedSwitchGNN(nn.Module):
             SMLP_input
         )  # num_switches*B x 4, [switch_prob, P_flow, V_parent, V_child]
 
-        p_switch = self.switch_activation(SMLP_out[:, 0])
+        p_switch = SMLP_out[:, 0]
         graph_topo = torch.ones((x.shape[0], utils.M), device=self.device)
         graph_topo[mask] = p_switch
 
@@ -112,11 +112,11 @@ class GatedSwitchGNN(nn.Module):
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[mask] = SMLP_out[:, 1] - 0.5
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_parent[mask] = self.vLow * (1 - SMLP_out[:, 2]) + self.vUpp * (
+        vs_parent[mask] = utils.vLow * (1 - SMLP_out[:, 2]) + utils.vUpp * (
             SMLP_out[:, 2]
         )
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_child[mask] = self.vLow * (1 - SMLP_out[:, 3]) + self.vUpp * (SMLP_out[:, 3])
+        vs_child[mask] = utils.vLow * (1 - SMLP_out[:, 3]) + utils.vUpp * (SMLP_out[:, 3])
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -132,9 +132,9 @@ class GatedSwitchGNN(nn.Module):
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         pc_flow[~mask] = CMLP_out[:, 0] - 0.5
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[~mask] = self.vLow * (1 - CMLP_out[:, 1]) + self.vUpp * (CMLP_out[:, 1])
+        vc_parent[~mask] = utils.vLow * (1 - CMLP_out[:, 1]) + utils.vUpp * (CMLP_out[:, 1])
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[~mask] = self.vLow * (1 - CMLP_out[:, 2]) + self.vUpp * (CMLP_out[:, 2])
+        vc_child[~mask] = utils.vLow * (1 - CMLP_out[:, 2]) + utils.vUpp * (CMLP_out[:, 2])
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
