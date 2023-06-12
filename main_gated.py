@@ -60,33 +60,19 @@ def main(args):
     cost_fnc = utils.obj_fnc_JA
 
     num_epochs = args["epochs"]
-
-    if args["topoLoss"]:
-        save_dir = os.path.join(
-            "results",
-            "basic_experiments_topoLoss",
-            model.__class__.__name__,
-            "_".join(
-                [
-                    f'{args["numLayers"]}',
-                    f'{args["hiddenFeatures"]}',
-                    f'{args["lr"]:.0e}',
-                ]
-            ),
-        )
-    else:
-        save_dir = os.path.join(
-            "results",
-            "new_topo",
-            model.__class__.__name__,
-            "_".join(
-                [
-                    f'{args["numLayers"]}',
-                    f'{args["hiddenFeatures"]}',
-                    f'{args["lr"]:.0e}',
-                ]
-            ),
-        )
+   
+    save_dir = os.path.join(
+        "results_agg",
+        model.__class__.__name__,
+        "_".join(
+            [
+                f'{args["aggregation"]}',
+                f'{args["numLayers"]}',
+                f'{args["hiddenFeatures"]}',
+                f'{args["lr"]:.0e}',
+            ]
+        ),
+    )
     if args["saveModel"] or args["saveAllStats"]:
         i = 0
         while os.path.exists(os.path.join(save_dir, f"v{i}")):
@@ -104,8 +90,7 @@ def main(args):
     for i in range(num_epochs):
         if i == 0 and args["warmStart"]:
             warm_start = True
-        if i == 999:
-            print("hi")
+
         start_train = time.time()
         train_epoch_stats = train(
             model, optimizer, cost_fnc, train_loader, args, utils, warm_start
