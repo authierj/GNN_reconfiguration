@@ -51,7 +51,7 @@ for key, value in exp_args.items():
     args[key] = value
 
 save_dir = os.path.join("results_agg", "experiments")
-filepath = os.path.join(save_dir, "_".join(args["hiddenFeatures"], "hiddenFeatures") + ".txt")
+filepath = os.path.join(save_dir, "_".join([f'{args["hiddenFeatures"]}', "hiddenFeatures"]) + ".txt")
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
