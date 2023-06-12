@@ -43,7 +43,7 @@ def main(args):
     graph_dataset = GraphDataSetWithSwitches(root="datasets/" + args["network"])
     graph_dataset.data.to(device)
 
-    # TODO change to arguments so that we can use different networks directly
+    # TODO change to 7800, 400, 400 
     train_graphs = graph_dataset[0:3200]
     valid_graphs = graph_dataset[3200:3600]
     test_graphs = graph_dataset[3600:4000]
