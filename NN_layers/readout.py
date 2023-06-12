@@ -73,7 +73,7 @@ class SMLP(torch.nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
         # x = x.sigmoid()
-        return x
+        return x.sigmoid()
 
 
 class CMLP(torch.nn.Module):
@@ -93,4 +93,4 @@ class CMLP(torch.nn.Module):
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
-        return x
+        return x.sigmoid()

@@ -103,7 +103,7 @@ class Utils:
 
         return qij, pg, qg
 
-    def obj_fnc_JA(self, z, zc):
+    def obj_fnc_JA(self, z, zc, Rall):
         """
         obj_fnc approximates the power loss via line losses using Rij * (Pij^2 + Qij^2)
 
@@ -113,7 +113,7 @@ class Utils:
         pij, _, topology = self.decompose_vars_z_JA(z)
         qij, _, _ = self.decompose_vars_zc_JA(zc)
 
-        fncval = torch.sum((pij**2 + qij**2) * self.Rall, dim=1)
+        fncval = torch.sum((pij**2 + qij**2) * Rall, dim=1)
         # prob_push = torch.sum(topology * (topology -1), dim=1)
         return fncval
 
@@ -221,7 +221,7 @@ class Utils:
 
         return result.flatten()
 
-    def complete_JA(self, x, v, p_flow, topo, incidence):
+    def complete_JA(self, x, v, p_flow, topo, incidence, Rall, Xall):
         """
         return the completion variables to satisfy the power flow equations
 
@@ -240,8 +240,8 @@ class Utils:
         """
 
         q_flow = (
-            0.5 * (v.unsqueeze(1) @ incidence.float()).squeeze() - self.Rall * p_flow
-        ) / self.Xall
+            0.5 * (v.unsqueeze(1) @ incidence.float()).squeeze() - Rall * p_flow
+        ) / Xall
 
         # TODO assert here that the equation is satisfied with vi-vj == qij + pij
 
@@ -410,25 +410,25 @@ class Utils:
        
         return delta_v
 
-    def opt_gap_JA(self, z, zc, y):
-        """
-        opt_gap_JA returns the optimality gap of the neural network guess
+    # def opt_gap_JA(self, z, zc, y):
+    #     """
+    #     opt_gap_JA returns the optimality gap of the neural network guess
 
-        args:
-            z: the output of the neural network
-            zc: the completion variables
-            y: the reference solution
-        return:
-            opt_gap: the optimality gap of the neural network guess
-        """
-        opt_z = y[:, : self.zrdim]
-        opt_zc = y[:, self.zrdim :]
+    #     args:
+    #         z: the output of the neural network
+    #         zc: the completion variables
+    #         y: the reference solution
+    #     return:
+    #         opt_gap: the optimality gap of the neural network guess
+    #     """
+    #     opt_z = y[:, : self.zrdim]
+    #     opt_zc = y[:, self.zrdim :]
 
-        opt_cost = self.obj_fnc_JA(opt_z, opt_zc)
-        cost = self.obj_fnc_JA(z, zc)
+    #     opt_cost = self.obj_fnc_JA(opt_z, opt_zc)
+    #     cost = self.obj_fnc_JA(z, zc)
 
-        opt_gap = (cost - opt_cost) / opt_cost
-        return opt_gap
+    #     opt_gap = (cost - opt_cost) / opt_cost
+    #     return opt_gap
 
     def average_sum_distance(self, z_hat, zc_hat, y, switch_mask, zrdim):
         """
@@ -488,7 +488,7 @@ def xgraph_xflatten(x_graph, batch_size, first_node=False):
     return xNN
 
 
-def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
+def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, Rall, y):
     """
     total loss returns the sum of the loss function and norm of the violation of
     the inequality constraints multiplied by the soft weight
@@ -507,7 +507,7 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
         soft_weight: the soft weight
     """
 
-    obj_cost = criterion(z, zc)
+    obj_cost = criterion(z, zc, Rall)
     # supervised_cost = utils.optimality_distance(z, zc, y)
     ineq_dist = utils.ineq_resid_JA(
         z, zc, pg_upp, qg_upp, incidence

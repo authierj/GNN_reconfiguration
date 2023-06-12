@@ -25,11 +25,11 @@ class GraphDataSet(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ["casedata_33_uniform_extrasw4", "casedata_33_uniform_random_8sw_v2", "casedata_33_uniform_random_8sw_v7"]
+        return ["casedata_33_uniform_extrasw4_endswitch", "casedata_33_uniform_random_8sw_v2", "casedata_33_uniform_random_8sw_v7"]
 
     @property
     def processed_file_names(self):
-        return "graphs_extrasw4_random_8sw_v2_v7.pt"
+        return "graph_switches_extrasw4_endsw_random_8sw_v2_v7.pt"
 
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
@@ -220,7 +220,14 @@ class GraphDataSetWithSwitches(InMemoryDataset):
             begin_edges = network[10].indices
             end_edges = network[11].indices
             edges = np.vstack((begin_edges, end_edges))
-
+            Rall = np.squeeze(network[14])
+            Xall = np.squeeze(network[15])
+            Rall = torch.cat(
+            (torch.from_numpy(Rall[interim]), torch.from_numpy(Rall[sw_idx]))
+            )
+            Xall = torch.cat(
+            (torch.from_numpy(Xall[interim]), torch.from_numpy(Xall[sw_idx]))
+            )
             edges_no_sw = edges[:, interim]
             reversed_edges_no_sw = np.flip(edges_no_sw, axis=0)
             bi_edges_no_sw = from_np(
@@ -274,6 +281,8 @@ class GraphDataSetWithSwitches(InMemoryDataset):
                     inv_degree=inv_degree,
                     pg_upp = pg_upp[i, :],
                     qg_upp = qg_upp[i, :],
+                    Rall = Rall,
+                    Xall = Xall,
                 )
                 data_list.append(graph)
         data, slices = self.collate(data_list)

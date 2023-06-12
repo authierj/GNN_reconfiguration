@@ -11,7 +11,7 @@ network_ID = "baranwu33"  # "node4"
 # dataflag='partial'
 dataflag = "full"
 
-filename = 'casedata_33_uniform_random_8sw_v7.mat'
+filename = 'casedata_33_uniform_extrasw4_endswitch.mat'
 # filename = "casedata_graph.mat"
 
 torch.set_default_dtype(torch.float64)
@@ -19,9 +19,9 @@ filepath = os.path.join("datasets", network_ID, "raw", filename)
 problem = OPTreconfigure(filepath, dataflag)
 
 # Cut down number of samples if needed
-num = 4000  # 5000  # 1200
-problem._x = problem.x[:num, :]  # TODO: check dimensions and slicing
-problem._num = problem.x.shape[0]
+# num = 4000  # 5000  # 1200
+# problem._x = problem.x[:num, :]  # TODO: check dimensions and slicing
+# problem._num = problem.x.shape[0]
 # if dataflag.lower() == "full":
 #     problem._z = problem.y[:num, :]
 #     problem._zc = problem.zc[:num, :]

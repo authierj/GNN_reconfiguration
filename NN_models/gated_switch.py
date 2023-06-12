@@ -110,11 +110,13 @@ class GatedSwitchGNN(nn.Module):
             graph_topo = self.PhyR(graph_topo)
 
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        ps_flow[mask] = SMLP_out[:, 1]
+        ps_flow[mask] = SMLP_out[:, 1] - 0.5
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_parent[mask] = SMLP_out[:, 2]
+        vs_parent[mask] = self.vLow * (1 - SMLP_out[:, 2]) + self.vUpp * (
+            SMLP_out[:, 2]
+        )
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_child[mask] = SMLP_out[:, 3]
+        vs_child[mask] = self.vLow * (1 - SMLP_out[:, 3]) + self.vUpp * (SMLP_out[:, 3])
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -128,11 +130,11 @@ class GatedSwitchGNN(nn.Module):
         )  # (M-num_switch)*B x 3, [Pflow, Vparent, Vchild]
 
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
-        pc_flow[~mask] = CMLP_out[:, 0]
+        pc_flow[~mask] = CMLP_out[:, 0] - 0.5
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[~mask] = CMLP_out[:, 1]
+        vc_parent[~mask] = self.vLow * (1 - CMLP_out[:, 1]) + self.vUpp * (CMLP_out[:, 1])
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[~mask] = CMLP_out[:, 2]
+        vc_child[~mask] = self.vLow * (1 - CMLP_out[:, 2]) + self.vUpp * (CMLP_out[:, 2])
 
         p_flow = ps_flow + pc_flow
         # first_mul = data.D_inv @ data.Incidence_parent
@@ -156,7 +158,7 @@ class GatedSwitchGNN(nn.Module):
         v[:, 0] = 1  # V_PCC = 1
 
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
-            data.x_data, v, p_flow, graph_topo, utils.A
+            data.x_data, v, p_flow, graph_topo, data.incidence, data.Rall, data.Xall
         )
 
         z = torch.cat((p_flow_corrected, v, graph_topo), dim=1)
