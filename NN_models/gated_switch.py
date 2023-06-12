@@ -111,9 +111,9 @@ class GatedSwitchGNN(nn.Module):
         ps_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         ps_flow[:, -utils.numSwitches :] = SMLP_out[:, 1].view((x.shape[0], -1)) - 0.5
         vs_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_parent[:, -utils.numSwitches :] = SMLP_out[:, 2].view((x.shape[0], -1)) + 0.5
+        vs_parent[:, -utils.numSwitches :] = utils.vLow * (1 - SMLP_out[:, 2].view((x.shape[0], -1))) + utils.vUpp * SMLP_out[:, 2].view((x.shape[0], -1))
         vs_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vs_child[:, -utils.numSwitches :] = SMLP_out[:, 3].view((x.shape[0], -1)) + 0.5
+        vs_child[:, -utils.numSwitches :] = utils.vLow * (1 - SMLP_out[:, 3].view((x.shape[0], -1))) + utils.vUpp * SMLP_out[:, 3].view((x.shape[0], -1))
 
         nodes = torch.nonzero(data.A.triu())  # dim = (M-num_switch)*B x 3
 
@@ -129,9 +129,9 @@ class GatedSwitchGNN(nn.Module):
         pc_flow = torch.zeros((x.shape[0], utils.M), device=self.device)
         pc_flow[:, : -utils.numSwitches] = CMLP_out[:, 0].view((x.shape[0], -1)) - 0.5
         vc_parent = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_parent[:, : -utils.numSwitches] = CMLP_out[:, 1].view((x.shape[0], -1)) + 0.5
+        vc_parent[:, : -utils.numSwitches] = utils.vLow * (1 - CMLP_out[:, 1].view((x.shape[0], -1))) + utils.vUpp * CMLP_out[:, 1].view((x.shape[0], -1))
         vc_child = torch.zeros((x.shape[0], utils.M), device=self.device)
-        vc_child[:, : -utils.numSwitches] = CMLP_out[:, 2].view((x.shape[0], -1)) + 0.5
+        vc_child[:, : -utils.numSwitches] = utils.vLow * (1 - CMLP_out[:, 2].view((x.shape[0], -1))) + utils.vUpp * CMLP_out[:, 2].view((x.shape[0], -1))
 
         p_flow = ps_flow + pc_flow
 
