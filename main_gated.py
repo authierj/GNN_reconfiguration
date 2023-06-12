@@ -44,9 +44,9 @@ def main(args):
     graph_dataset.data.to(device)
 
     # TODO change to 7800, 400, 400 
-    train_graphs = graph_dataset[0:3200]
-    valid_graphs = graph_dataset[3200:3600]
-    test_graphs = graph_dataset[3600:4000]
+    train_graphs = graph_dataset[0:7800]
+    valid_graphs = graph_dataset[7800:8200]
+    test_graphs = graph_dataset[8200:8600]
 
     batch_size = args["batchSize"]
     train_loader = DenseDataLoader(train_graphs, batch_size=batch_size, shuffle=True)
