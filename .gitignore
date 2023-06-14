@@ -19,3 +19,5 @@ datasets/node4/*
 parse_experiments_phmldyr.py
 plot_experiments.py
 generate_data/*
+results_agg/*
+results_var_phyr/*
