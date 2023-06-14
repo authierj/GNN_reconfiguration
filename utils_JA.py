@@ -559,6 +559,15 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, y):
     soft_weight = args["softWeight"]
 
     total_loss = obj_cost + soft_weight * ineq_cost
+    if args["topoLoss"]:
+        total_loss += args["topoWeight"] * utils.squared_error_topology(
+            z, y
+        )
+        # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
+        #     z_hat, data.y
+        # )
+    if args["pushProb"]:
+        total_loss += args["pushWeight"] * utils.prob_push(z)
     mean_loss = torch.mean(total_loss)
     return total_loss
 
