@@ -256,7 +256,6 @@ class Utils:
 
         return pg, qg, p_flow_corrected, q_flow_corrected
 
-    
     def ineq_resid_JA(self, z, zc, pg_upp, qg_upp, incidence):
         """
         ineq_resid returns the violation of the inequality constraints
@@ -283,7 +282,8 @@ class Utils:
 
         # TODO discuss with Rabab
         connectivity = (
-            1 - (torch.abs(incidence.double()) @ topology.unsqueeze(2).double()).squeeze()
+            1
+            - (torch.abs(incidence.double()) @ topology.unsqueeze(2).double()).squeeze()
         )
 
         resids = torch.cat(
@@ -390,7 +390,7 @@ class Utils:
 
         dist = torch.cat([delta_pg, delta_qg], dim=1)
         return dist
-    
+
     def opt_voltage_dist_JA(self, z, y):
         """
         opt_voltage_dist_JA returns the squared distance between the output of
@@ -407,7 +407,7 @@ class Utils:
         _, v, _ = self.decompose_vars_z_JA(z)
 
         delta_v = torch.square(v[:, 1:] - opt_v[:, 1:])
-       
+
         return delta_v
 
     # def opt_gap_JA(self, z, zc, y):
@@ -520,6 +520,9 @@ def total_loss(z, zc, criterion, utils, args, pg_upp, qg_upp, incidence, Rall, y
     soft_weight = args["softWeight"]
 
     total_loss = obj_cost + soft_weight * ineq_cost
+    if args["topoLoss"]:
+        total_loss += args["topoWeight"] * utils.squared_error_topology(z, y)
+
     mean_loss = torch.mean(total_loss)
     return total_loss
 

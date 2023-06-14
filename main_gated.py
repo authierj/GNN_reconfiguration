@@ -59,15 +59,27 @@ def main(args):
             torch.arange(num_graph_per_dataset + 7800, num_graph_per_dataset + 8200),
         )
     )
-    test_idx = torch.arange(2 * num_graph_per_dataset, 2 * num_graph_per_dataset + 400)
+    test_idx = torch.hstack(
+        (
+            torch.arange(8200, 8600),
+            torch.arange(num_graph_per_dataset + 8200, num_graph_per_dataset + 8600),
+        )
+    )
+    test_idx_new_graph = torch.arange(
+        2 * num_graph_per_dataset, 2 * num_graph_per_dataset + 400
+    )
     train_graphs = graph_dataset[train_idx]
     valid_graphs = graph_dataset[valid_idx]
     test_graphs = graph_dataset[test_idx]
+    test_new_graphs = graph_dataset[test_idx_new_graph]
 
     batch_size = args["batchSize"]
     train_loader = DenseDataLoader(train_graphs, batch_size=batch_size, shuffle=True)
     valid_loader = DenseDataLoader(valid_graphs, batch_size=batch_size, shuffle=True)
     test_loader = DenseDataLoader(test_graphs, batch_size=batch_size, shuffle=True)
+    test_loader_NG = DenseDataLoader(
+        test_new_graphs, batch_size=batch_size, shuffle=True
+    )
 
     # Model initialization and optimizer
     model = getattr(gated_gnn, args["model"])(args, utils)
@@ -78,32 +90,29 @@ def main(args):
 
     num_epochs = args["epochs"]
 
+    save_dir = os.path.join("results_graphs_same_s", "experiments")
     if args["topoLoss"]:
-        save_dir = os.path.join(
-            "results",
-            "test_topo_prob_PhyR",
-            model.__class__.__name__,
-            "_".join(
-                [
-                    f'{args["numLayers"]}',
-                    f'{args["hiddenFeatures"]}',
-                    f'{args["lr"]:.0e}',
-                ]
-            ),
-        )
+        filepath = os.path.join(save_dir, "semi_super_noPhyR" + ".txt")
     else:
-        save_dir = os.path.join(
-            "results",
-            "testing",
-            model.__class__.__name__,
-            "_".join(
-                [
-                    f'{args["numLayers"]}',
-                    f'{args["hiddenFeatures"]}',
-                    f'{args["lr"]:.0e}',
-                ]
-            ),
-        )
+        filepath = os.path.join(save_dir, "PhyR" + ".txt")
+
+    save_dir = os.path.join(
+        "results_graphs_same_s",
+        model.__class__.__name__,
+        "_".join(
+            [
+                f'{args["aggregation"]}',
+                f'{args["numLayers"]}',
+                f'{args["hiddenFeatures"]}',
+                f'{args["lr"]:.0e}',
+            ]
+        ),
+    )
+    if args["warmStart"]:
+        save_dir += "_PhyR"
+    elif args["topoLoss"]:
+        save_dir += "_semisuper_noPhyR"
+
     if args["saveModel"] or args["saveAllStats"]:
         i = 0
         while os.path.exists(os.path.join(save_dir, f"v{i}")):
@@ -131,10 +140,13 @@ def main(args):
             model, cost_fnc, valid_loader, args, utils, warm_start
         )
         test_epoch_stats = test(model, cost_fnc, test_loader, args, utils, warm_start)
+        test_NG_epoch_stats = test_NG(
+            model, cost_fnc, test_loader_NG, args, utils, warm_start
+        )
 
         if i % 10 == 0:
             print(
-                f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Train Time: {train_time:.4f}"
+                f"Epoch: {i:03d}, Train Loss: {train_epoch_stats['train_loss']:.4f}, Valid Loss: {valid_epoch_stats['valid_loss']:.4f}, Test Loss: {test_epoch_stats['test_loss']:.4f}, Test_NG Loss: {test_NG_epoch_stats['test_NG_loss']:.4f},Train Time: {train_time:.4f}"
             )
 
         if args["saveAllStats"]:
@@ -146,6 +158,8 @@ def main(args):
                     stats[key] = np.expand_dims(np.array(valid_epoch_stats[key]), axis=0)
                 for key in test_epoch_stats.keys():
                     stats[key] = np.expand_dims(np.array(test_epoch_stats[key]), axis=0)
+                for key in test_NG_epoch_stats.keys():
+                    stats[key] = np.expand_dims(np.array(test_NG_epoch_stats[key]), axis=0)
             # fmt: on
             else:
                 for key in train_epoch_stats.keys():
@@ -167,6 +181,13 @@ def main(args):
                         (
                             stats[key],
                             np.expand_dims(np.array(test_epoch_stats[key]), axis=0),
+                        )
+                    )
+                for key in test_NG_epoch_stats.keys():
+                    stats[key] = np.concatenate(
+                        (
+                            stats[key],
+                            np.expand_dims(np.array(test_NG_epoch_stats[key]), axis=0),
                         )
                     )
         else:
@@ -226,15 +247,15 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
             data.qg_upp,
             data.incidence,
             data.Rall,
-            data.y
+            data.y,
         )
-        if args["topoLoss"]:
-            train_loss += args["topoWeight"] * utils.squared_error_topology(
-                z_hat, data.y
-            )
-            # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
-            #     z_hat, data.y, data.switch_mask
-            # )
+        # if args["topoLoss"]:
+        #     train_loss += args["topoWeight"] * utils.squared_error_topology(
+        #         z_hat, data.y
+        #     )
+        # train_loss += args["topoWeight"] * utils.cross_entropy_loss_topology(
+        #     z_hat, data.y, data.switch_mask
+        # )
 
         # time_start = time.time()
         train_loss.sum().backward()
@@ -246,7 +267,11 @@ def train(model, optimizer, criterion, loader, args, utils, warm_start=False):
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, data.incidence,
+            z_hat.detach(),
+            zc_hat.detach(),
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
@@ -303,13 +328,17 @@ def validate(model, criterion, loader, args, utils, warm_start=False):
             data.qg_upp,
             data.incidence,
             data.Rall,
-            data.y
+            data.y,
         )
 
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, data.incidence,
+            z_hat.detach(),
+            zc_hat.detach(),
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
@@ -371,12 +400,16 @@ def test(model, criterion, loader, args, utils, warm_start=False):
             data.qg_upp,
             data.incidence,
             data.Rall,
-            data.y
+            data.y,
         )
         dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
         voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
         ineq_resid = utils.ineq_resid_JA(
-            z_hat.detach(), zc_hat.detach(), data.pg_upp, data.qg_upp, data.incidence,
+            z_hat.detach(),
+            zc_hat.detach(),
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
         )
         topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
         topo_factor = utils.M / data.numSwitches
@@ -403,6 +436,79 @@ def test(model, criterion, loader, args, utils, warm_start=False):
             dict_agg(epoch_stats, 'test_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             dict_agg(epoch_stats, 'test_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
             dict_agg(epoch_stats, 'test_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            # dict_agg(epoch_stats, 'test_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
+            # fmt: on
+        i += 1
+    return epoch_stats
+
+
+def test_NG(model, criterion, loader, args, utils, warm_start=False):
+    """
+    test the model on the test set
+
+    args:
+        model: model to test
+        criterion: loss function
+        loader: data loader
+        args: dictionary of arguments
+        utils: utils object
+    return:
+        epoch_stats: dictionary of statistics for the epoch
+    """
+
+    model.eval()
+    size = len(loader) * args["batchSize"]
+    epoch_stats = {}
+
+    i = 0
+    for data in loader:
+        z_hat, zc_hat = model(data, utils, warm_start)
+        test_loss = total_loss(
+            z_hat,
+            zc_hat,
+            criterion,
+            utils,
+            args,
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
+            data.Rall,
+            data.y,
+        )
+        dispatch_dist = utils.opt_dispatch_dist_JA(zc_hat.detach(), data.y.detach())
+        voltage_dist = utils.opt_voltage_dist_JA(z_hat.detach(), data.y.detach())
+        ineq_resid = utils.ineq_resid_JA(
+            z_hat.detach(),
+            zc_hat.detach(),
+            data.pg_upp,
+            data.qg_upp,
+            data.incidence,
+        )
+        topology_dist = utils.opt_topology_dist_JA(z_hat.detach(), data.y.detach())
+        topo_factor = utils.M / data.numSwitches
+        # opt_gap = utils.opt_gap_JA(z_hat.detach(), zc_hat.detach(), data.y.detach())
+        eps_converge = args["corrEps"]
+        dict_agg(
+            epoch_stats,
+            "test_NG_loss",
+            torch.sum(test_loss).detach().cpu().numpy() / size,
+            op="sum",
+        )
+        if args["saveModel"]:
+            # fmt: off
+            dict_agg(epoch_stats, 'test_NG_ineq_max', torch.mean(torch.max(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'test_NG_ineq_mean', torch.mean(torch.mean(ineq_resid, dim=1)).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'test_NG_ineq_min', torch.mean(torch.min(ineq_resid, dim=1)[0]).detach().cpu().numpy(), op="concat")
+            dict_agg(epoch_stats, 'test_NG_ineq_num_viol_0', torch.mean(torch.sum(ineq_resid > eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'test_NG_ineq_num_viol_1', torch.mean(torch.sum(ineq_resid > 10 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'test_NG_ineq_num_viol_2', torch.mean(torch.sum(ineq_resid > 100 * eps_converge, dim=1).float()).detach().cpu().numpy()/len(loader), op="sum")
+            dict_agg(epoch_stats, 'test_NG_dispatch_error_max', torch.max(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_NG_dispatch_error_mean', torch.sum(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'test_NG_dispatch_error_min', torch.min(torch.mean(dispatch_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_NG_voltage_error_mean', torch.sum(torch.mean(voltage_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'test_NG_topology_error_max', torch.max(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
+            dict_agg(epoch_stats, 'test_NG_topology_error_mean', torch.sum(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/size, op='sum')
+            dict_agg(epoch_stats, 'test_NG_topology_error_min', torch.min(torch.mean(topo_factor*topology_dist, dim=1)).detach().cpu().numpy()/len(loader), op='sum')
             # dict_agg(epoch_stats, 'test_opt_gap', torch.mean(opt_gap).detach().cpu().numpy()/len(loader), op='sum')
             # fmt: on
         i += 1
