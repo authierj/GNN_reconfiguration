@@ -151,10 +151,14 @@ class Utils:
         ind = torch.stack(
             [torch.arange(p.size(0), device=self.device), indices[:, -1]], dim=1
         )
-
-        topology = torch.scatter(mask, 1, indices[:, :-1], 1)
+        ind2 = torch.stack(
+            [torch.arange(p.size(0), device=self.device), indices[:, -2]], dim=1
+        )
+        topology = torch.scatter(mask, 1, indices[:, :-2], 1)
         topology[ind[:, 0], ind[:, 1]] = p[ind[:, 0], ind[:, 1]]
-        topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
+        topology[ind2[:, 0], ind2[:, 1]] = p[ind2[:, 0], ind2[:, 1]]
+        # topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
+        topo = topology
 
         return topo.flatten()
 
