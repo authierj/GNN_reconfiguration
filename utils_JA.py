@@ -139,7 +139,7 @@ class Utils:
         n_switches = n_switches[0]
         L = (self.N - 1) - (self.M - n_switches).int()
         p_switch = s.view(200, -1)
-        p = p_switch
+        p = p_switch[:, :-1]
 
         # Find the L-th largest values along each row
         _, indices = torch.topk(p, L + 1, dim=1, largest=True, sorted=True)
@@ -151,13 +151,9 @@ class Utils:
         ind = torch.stack(
             [torch.arange(p.size(0), device=self.device), indices[:, -1]], dim=1
         )
-        ind2 = torch.stack(
-            [torch.arange(p.size(0), device=self.device), indices[:, -2]], dim=1
-        )
-        topology = torch.scatter(mask, 1, indices[:, :-2], 1)
-        topology[ind[:, 0], ind[:, 1]] = 1 - p[ind2[:, 0], ind2[:, 1]]
-        topology[ind2[:, 0], ind2[:, 1]] = p[ind2[:, 0], ind2[:, 1]]
-        # topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
+        topology = torch.scatter(mask, 1, indices[:, :-1], 1)
+        topology[ind[:, 0], ind[:, 1]] = p[ind[:, 0], ind[:, 1]]
+        topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
         topo = topology
 
         return topo.flatten()
