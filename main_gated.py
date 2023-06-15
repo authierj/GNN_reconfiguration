@@ -97,7 +97,7 @@ def main(args):
         filepath = os.path.join(save_dir, "PhyR" + ".txt")
 
     save_dir = os.path.join(
-        "results_graphs_same_s",
+        "results_graphs_different_s",
         model.__class__.__name__,
         "_".join(
             [

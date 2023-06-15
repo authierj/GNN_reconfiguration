@@ -145,13 +145,15 @@ class GraphDataSetWithSwitches(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ["casedata_33_uniform_extrasw4_endswitch", "casedata_33_uniform_random_8sw_v2", "casedata_33_uniform_random_8sw_v7"]
+        # return ["casedata_33_uniform_extrasw4_endswitch", "casedata_33_uniform_random_8sw_v2", "casedata_33_uniform_random_8sw_v7"]
         # return "casedata_33_uniform_extrasw"
+        return ["casedata_33_uniform_extrasw4_endswitch", "casedata_33_uniform_random_10sw_v1", "casedata_33_uniform_random_10sw_v3"]
 
     @property
     def processed_file_names(self):
-        return "graph_switches_extrasw4_endsw_random_8sw_v2_v7.pt"
-    
+        # return "graph_switches_extrasw4_endsw_random_8sw_v2_v7.pt"
+        return "graph_switches_extrasw4_endsw_random_10sw_v1_v3.pt"
+
     def extract_JA_sol(self, z, zc, n, m, numSwitches, sw_idx, no_sw_idx):
         y_nol = z[:, m + np.arange(0, numSwitches - 1)]
         pij = z[:, m + numSwitches - 1 + np.arange(0, m)]
