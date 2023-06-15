@@ -7,9 +7,6 @@ dataprofiles/ISONE_hourlyload/.DS_Store
 dataprofiles/HawaiiData/.DS_Store
 dataprofiles/.DS_Store
 .idea/
-results/*
-results_copy/*
-results_previous/*
 final_results/*
 mult_graph_results/*
 plots/*
@@ -19,5 +16,4 @@ datasets/node4/*
 parse_experiments_phmldyr.py
 plot_experiments.py
 generate_data/*
-results_agg/*
-results_var_phyr/*
+results*
