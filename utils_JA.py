@@ -154,7 +154,6 @@ class Utils:
         topology = torch.scatter(mask, 1, indices[:, :-1], 1)
         topology[ind[:, 0], ind[:, 1]] = p[ind[:, 0], ind[:, 1]]
         topo = torch.hstack((topology, -p[ind[:, 0], ind[:, 1]].unsqueeze(1)))
-        topo = topology
 
         return topo.flatten()
 
