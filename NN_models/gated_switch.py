@@ -228,7 +228,7 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         MLP_input = torch.cat((switches.view(200, -1), x.view(200, -1)), axis=1)
         MLP_out = self.MLP(MLP_input)  # [pij, v, p_switch]
 
-        p_switch = self.switch_activation(MLP_out[:, -utils.numSwitches :])
+        p_switch = MLP_out[:, -utils.numSwitches :]
         n_switch_per_batch = torch.full((200, 1), utils.numSwitches).squeeze()
 
         if warm_start:
@@ -240,11 +240,16 @@ class GatedSwitchGNN_globalMLP(nn.Module):
         graph_topo[:, -utils.numSwitches :] = topology.view((200, -1))
 
         v = MLP_out[:, utils.M : utils.M + utils.N]
+        v_phys = utils.vLow * (1 - v) + utils.vUpp * v
         v[:, 0] = 1
+
+        p_flow = MLP_out[:, : utils.M]
+        p_flow_phys = p_flow - 0.5
+
         pg, qg, p_flow_corrected, q_flow_corrected = utils.complete_JA(
             data.x,
-            v,
-            MLP_out[:, 0 : utils.M],
+            v_phys,
+            p_flow_phys,
             graph_topo,
         )
 

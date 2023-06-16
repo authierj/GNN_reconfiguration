@@ -69,15 +69,18 @@ class GlobalMLP_reduced_switch(torch.nn.Module):
         # torch.manual_seed(12)
         input_features = args["hiddenFeatures"] * input_dim
         hidden_features = input_features
-        self.lin_input = Linear(input_features, hidden_features)
-        self.lin_output = Linear(hidden_features, output_dim)
+        self.lin_input = Linear(input_features, hidden_features, dtype=torch.double)
+        self.lin_output = Linear(hidden_features, output_dim, dtype=torch.double)
         self.dropout = args["dropout"]
+        self.batchnorm = nn.BatchNorm1d(hidden_features, dtype=torch.double)
 
     def forward(self, x):
         x = self.lin_input(x)
+        x = self.batchnorm(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin_output(x)
+        x = x.sigmoid().clone()
         return x
 
 
